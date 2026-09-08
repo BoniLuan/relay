@@ -1,0 +1,6 @@
+/bin/
+/.local/
+/.env
+/.env.*
+!/.env.example
+/coverage.out
