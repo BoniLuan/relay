@@ -51,3 +51,13 @@ keyring:
 	docker run --rm --network none --user "$(RELAY_RUN_UID):$(RELAY_RUN_GID)" -v "$(CURDIR)/.local:/keys" relay:dev keyring-init /keys/keyring.json
 register-keyring:
 	docker compose run --rm relay-admin register-keyring
+
+WORKER_LEASE ?= 30s
+.PHONY: worker
+worker:
+	docker compose run --rm --build relay-worker worker --lease-duration "$(WORKER_LEASE)"
+
+.PHONY: test-worker-process
+test-worker-process:
+	docker build -t relay:lease-check .
+	sh scripts/test-worker-process.sh

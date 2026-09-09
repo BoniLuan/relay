@@ -3,7 +3,8 @@
 Authenticated owners can stage, activate, inspect metadata and revoke destination
 signing keys. Migration 002 adds encrypted versioned secrets and master-key
 verification records; migration 001 stays unchanged. Existing destinations receive
-no automatic key. No worker or automatic event delivery is enabled.
+no automatic key. An opt-in [lease diagnostic](QUEUE_LEASES.md) exists but never reads signing keys
+or sends events. Automatic delivery remains disabled.
 
 ## Development setup
 
@@ -14,7 +15,7 @@ cp .env.example .env
 chmod 600 .env
 make keyring             # Creates .local/keyring.json, mode 0600; never overwrites
 make db
-make migrate             # Explicit migration to version 2
+make migrate             # Explicit migration to current schema (version 3)
 make register-keyring    # Explicit registration/verification of master keys
 make client NAME=local
 make up
@@ -121,7 +122,7 @@ Run migrations if needed and `relay register-keyring`; verify readiness, metadat
 and decryption of a known active key with an isolated test receiver. Never restore
 over another application's data. Wrong/missing keys must prevent startup/decryption.
 
-Tests cover restart, key rollover, canary mismatch, tampering, rollback and v1-to-v2
+Tests cover restart, key rollover, canary mismatch, tampering, rollback and v1/v2 upgrades
 migration. A full operational `pg_dump`/`pg_restore` drill is not yet automated or
 claimed as tested.
 

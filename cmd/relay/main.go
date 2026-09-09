@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -14,6 +16,7 @@ import (
 	"github.com/BoniLuan/relay/internal/httpapi"
 	"github.com/BoniLuan/relay/internal/secrets"
 	"github.com/BoniLuan/relay/internal/storage"
+	"github.com/BoniLuan/relay/internal/worker"
 )
 
 func main() {
@@ -85,6 +88,20 @@ func run(logger *slog.Logger) error {
 		}
 		logger.Info("keyring registered")
 		return nil
+	case "worker":
+		flags := flag.NewFlagSet("worker", flag.ContinueOnError)
+		flags.SetOutput(io.Discard)
+		duration := flags.Duration("lease-duration", 30*time.Second, "lease duration, 1ms to 5m")
+		if err = flags.Parse(os.Args[2:]); err != nil || flags.NArg() != 0 {
+			return errors.New("usage: relay worker [--lease-duration 30s]")
+		}
+		readyCtx, readyCancel := context.WithTimeout(ctx, 5*time.Second)
+		err = db.Ready(readyCtx)
+		readyCancel()
+		if err != nil {
+			return errors.New("worker requires an available, migrated database")
+		}
+		return worker.Run(ctx, db, logger, *duration)
 	case "api":
 		keyring, err := secrets.LoadFile(os.Getenv("RELAY_KEYRING_FILE"))
 		if err != nil {
@@ -97,7 +114,7 @@ func run(logger *slog.Logger) error {
 		}
 
 	default:
-		return errors.New("usage: relay [api|migrate|create-client NAME|keyring-init PATH|register-keyring]")
+		return errors.New("usage: relay [api|worker|migrate|create-client NAME|keyring-init PATH|register-keyring]")
 	}
 	addr := os.Getenv("RELAY_HTTP_ADDR")
 	if addr == "" {

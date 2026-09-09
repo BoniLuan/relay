@@ -60,14 +60,15 @@ readiness has one second. Server read/write/idle timeouts bound connection use.
 
 ## Planned: delivery and operation
 
-A separately started worker will claim pending work transactionally using expiring
-leases. Delivery is at least once: a receiver can process a request before the
+An explicitly started lease-only worker now claims one pending/expired delivery
+transactionally; see [queue leases](QUEUE_LEASES.md). It has no sender or credential
+lookup and never marks delivery complete. A continuous delivery worker remains planned. Delivery is at least once: a receiver can process a request before the
 worker crashes or loses the response. Stable event IDs support receiver deduplication;
 Relay does not promise exactly-once delivery.
 
 The isolated `internal/delivery` primitives now implement the initial transport and
 in-memory signing contract; see [delivery security](DELIVERY_SECURITY.md). They are
-not connected to the API or queue. Durable signing-secret management is implemented separately; the worker must pin
+not connected to the API or lease-only worker. Durable signing-secret management is implemented separately; the worker must pin
 the selected version per attempt and re-read the active version for retries.
 
 The outbound policy covers SSRF-safe DNS resolution and connection pinning,
@@ -113,3 +114,11 @@ against encrypted database canaries. Registration is explicit; startup never
 modifies keys or runs migrations. Migration 002 preserves v1 data. Lifecycle
 operations lock the destination row to serialize concurrency. Staging exports
 plaintext only after commit; metadata reads do not decrypt credentials.
+
+## Delivery reservation boundary
+
+Migration 003 adds `leased` state, owner UUID, fresh acquisition token and database
+expiry. Claims commit before returning and hold no connection during observation.
+Release uses event ID plus owner/token and an unexpired deadline, rejecting stale
+processes after recovery. The one-claim CLI is opt-in and needs no signing keyring.
+Future HTTP completion/retry updates must preserve this ownership condition.

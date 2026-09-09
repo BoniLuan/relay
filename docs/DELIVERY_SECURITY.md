@@ -3,7 +3,8 @@
 ## Status and boundary
 
 `internal/delivery` implements a bounded HTTPS attempt and in-memory signing and
-verification. It is not called by the API. No worker, outbound command or scheduler is enabled. Durable signing keys now have
+verification. It is not called by the API. The opt-in lease-only worker never calls this transport; no outbound command or
+scheduler is enabled. Durable signing keys now have
 an [owner-scoped lifecycle](SIGNING_SECRETS.md). Existing accepted events remain pending.
 
 This milestone isolates the network security behavior so it can be reviewed before

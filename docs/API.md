@@ -43,7 +43,7 @@ explicit `null`; omitting it is invalid. Escaped NUL (`\u0000`), unpaired Unicod
 surrogates and numbers beyond PostgreSQL numeric limits return 400. Rejected input
 does not reserve its idempotency key. Large integers are not converted to float64;
 valid surrogate pairs and the literal text `\\u0000` are accepted.
-IDs in requests must be lowercase UUIDs. Events currently have status `pending`.
+IDs in requests must be lowercase UUIDs. Events have status `pending` or `leased` (reservation only).
 This means durable acceptance, not a completed HTTP delivery. The event POST
 returns a `Location` header for lookup; duplicates also return
 `Idempotency-Replayed: true`.
@@ -80,8 +80,8 @@ Future delivery will be **at least once**. Ingestion idempotency does not preven
 a receiver from seeing the same event multiple times after network failures or
 worker crashes. Receivers must deduplicate using the stable event ID. Outbound
 delivery is not enabled. Isolated signing and DNS/SSRF primitives are tested in
-`internal/delivery`; durable secrets now have [an owner-scoped lifecycle](SIGNING_SECRETS.md). Worker
-integration and replay remain planned.
+`internal/delivery`; durable secrets now have [an owner-scoped lifecycle](SIGNING_SECRETS.md). The [lease-only worker](QUEUE_LEASES.md) can reserve events; HTTP delivery and
+replay remain planned.
 
 ## Database log privacy
 
@@ -99,3 +99,9 @@ Stage, inspect metadata, activate and revoke signing-secret versions through the
 [signing-secret API](SIGNING_SECRETS.md#owner-api). These operations require owner
 authentication and do not start outbound delivery. The one-time staging response
 is the only endpoint that discloses a signing credential.
+
+## Reservation status
+
+Event lookup and duplicate ingestion may return `status: leased`. An expired
+reservation stays `leased` until another claim replaces it; no HTTP delivery is
+implied by this state. Lease tokens/owners/deadlines are not included in this API.

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -18,7 +19,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func signingTestStore(t *testing.T) (*Store, string, string) {
+func isolatedTestStore(t *testing.T) (*Store, string) {
 	t.Helper()
 	raw := os.Getenv("RELAY_TEST_DATABASE_URL")
 	if raw == "" {
@@ -33,7 +34,7 @@ func signingTestStore(t *testing.T) (*Store, string, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	schema := "relay_keys_" + strings.ReplaceAll(NewID(), "-", "")
+	schema := "relay_test_" + strings.ReplaceAll(NewID(), "-", "")
 	if _, err = admin.pool.Exec(ctx, "CREATE SCHEMA "+pgx.Identifier{schema}.Sanitize()); err != nil {
 		t.Fatal(err)
 	}
@@ -49,6 +50,13 @@ func signingTestStore(t *testing.T) (*Store, string, string) {
 		admin.pool.Exec(context.Background(), "DROP SCHEMA "+pgx.Identifier{schema}.Sanitize()+" CASCADE")
 		admin.Close()
 	})
+	return db, u.String()
+}
+func signingTestStore(t *testing.T) (*Store, string, string) {
+	t.Helper()
+	db, raw := isolatedTestStore(t)
+	ctx := context.Background()
+	var err error
 	if err = db.Migrate(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +72,7 @@ func signingTestStore(t *testing.T) (*Store, string, string) {
 	if err = db.RegisterKeyring(ctx); err != nil {
 		t.Fatal(err)
 	}
-	return db, u.String(), path
+	return db, raw, path
 }
 func TestSigningLifecycle(t *testing.T) {
 	s, raw, path := signingTestStore(t)
@@ -348,38 +356,55 @@ func TestMasterKeyRollover(t *testing.T) {
 }
 
 func TestMigrationUpgradePreservesExistingData(t *testing.T) {
-	s, _, _ := signingTestStore(t)
-	ctx := context.Background()
-	// Recreate v1 only inside this test's private schema in the ephemeral database.
-	_, err := s.pool.Exec(ctx, "DROP TABLE signing_secrets,encryption_keys; DELETE FROM schema_migrations WHERE version=2")
-	if err != nil {
-		t.Fatal(err)
-	}
-	client, _, err := s.ProvisionClient(ctx, "legacy")
-	if err != nil {
-		t.Fatal(err)
-	}
-	d, err := s.CreateDestination(ctx, client, "https://example.com")
-	if err != nil {
-		t.Fatal(err)
-	}
-	payload := []byte(`null`)
-	e, _, err := s.Ingest(ctx, client, d.ID, "legacy", sha256.Sum256(payload), payload)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = s.Migrate(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if err = s.Migrate(ctx); err != nil {
-		t.Fatal(err)
-	}
-	found, err := s.GetEvent(ctx, client, e.ID)
-	if err != nil || found.ID != e.ID {
-		t.Fatal("migration lost existing event")
-	}
-	metadata, err := s.ListSigningSecrets(ctx, client, d.ID)
-	if err != nil || len(metadata) != 0 {
-		t.Fatal("migration generated an undisclosed secret")
+	for _, version := range []int{1, 2} {
+		t.Run(fmt.Sprintf("v%d", version), func(t *testing.T) {
+			s, _ := isolatedTestStore(t)
+			ctx := context.Background()
+			if _, err := s.pool.Exec(ctx, initialSchema); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.pool.Exec(ctx, "CREATE TABLE schema_migrations(version integer PRIMARY KEY); INSERT INTO schema_migrations VALUES(1)"); err != nil {
+				t.Fatal(err)
+			}
+			if version == 2 {
+				if _, err := s.pool.Exec(ctx, signingSchema); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := s.pool.Exec(ctx, "INSERT INTO schema_migrations VALUES(2)"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			client, _, err := s.ProvisionClient(ctx, "legacy")
+			if err != nil {
+				t.Fatal(err)
+			}
+			d, err := s.CreateDestination(ctx, client, "https://example.com")
+			if err != nil {
+				t.Fatal(err)
+			}
+			payload := []byte(`null`)
+			e, _, err := s.Ingest(ctx, client, d.ID, "legacy", sha256.Sum256(payload), payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = s.Migrate(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if err = s.Migrate(ctx); err != nil {
+				t.Fatal(err)
+			}
+			found, err := s.GetEvent(ctx, client, e.ID)
+			if err != nil || found.ID != e.ID || found.Status != "pending" {
+				t.Fatal("migration lost or changed existing event")
+			}
+			metadata, err := s.ListSigningSecrets(ctx, client, d.ID)
+			if err != nil || len(metadata) != 0 {
+				t.Fatal("migration generated an undisclosed secret")
+			}
+			lease, err := s.ClaimDelivery(ctx, NewID(), time.Minute)
+			if err != nil || lease.EventID != e.ID {
+				t.Fatalf("legacy delivery not claimable: %v", err)
+			}
+		})
 	}
 }

@@ -41,7 +41,23 @@ version; commit failure discloses no secret; restart/key rollover preserve keys;
 wrong master keys, tampering and ciphertext copying fail; revoked keys are not
 reused. A backup/restore procedure is documented; a full restore drill remains open.
 
-## 2c — Reliable worker (planned)
+## 2c.1 — Queue claims and expiring leases (implemented)
+
+Migration 003, atomic `SKIP LOCKED` claims, fresh per-acquisition tokens, fenced
+release and a one-claim diagnostic `relay worker`. No HTTP sends or completion.
+See [queue leases](QUEUE_LEASES.md).
+
+Acceptance: independent pools cannot acquire the same live reservation; locked
+rows do not block other work; expired reservations can be reclaimed; stale owners
+cannot release replacements; failed commits return no lease and leave work pending;
+graceful cancellation attempts bounded cleanup. Existing v1/v2 data is preserved.
+
+## 2c.2 — One complete delivery attempt (planned)
+
+Select the active signing key, record its version, send through the tested transport
+and persist a safe attempt outcome. Fence every state update with the lease token.
+
+## 2c.3 — Retries and worker recovery (planned)
 
 Connect the tested secret lifecycle and outbound primitives to queued work. Pin a
 secret version for each attempt and re-read the active version for retries.

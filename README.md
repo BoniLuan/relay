@@ -9,8 +9,10 @@ Destination signing secrets support encrypted storage, staged activation, rotati
 and revocation; see [the lifecycle guide](docs/SIGNING_SECRETS.md).
 **Not enabled:** outbound event delivery. Tested HTTPS/signing primitives exist in
 `internal/delivery`, but no worker calls them.
-**Not implemented:** worker, retries, delivery history, replay,
-client/key lifecycle management or public deployment. Pending deliveries stay pending.
+**Implemented for diagnosis:** a lease-only worker reserves one event without sending.
+See [queue leases](docs/QUEUE_LEASES.md).
+**Not implemented:** continuous delivery processing, retries, delivery history, replay,
+client/key lifecycle management or public deployment. No delivery is marked completed.
 
 ## Run locally with Docker Compose
 
@@ -34,7 +36,7 @@ curl --fail http://127.0.0.1:18081/readyz
 
 `make migrate` builds the application and runs the migration explicitly. Repeating
 it is safe. The API verifies the registered keyring before listening and never
-applies migrations. Readiness checks PostgreSQL, schema version 2 and the loaded
+applies migrations. Readiness checks PostgreSQL, schema version 3 and the loaded
 keyring; `/livez` checks only the HTTP process.
 `make client` is a local administrative operation with database access, not a
 public registration route. Tokens have 256 random bits; only SHA-256 hashes are
@@ -45,6 +47,7 @@ For the implementation and study path, see [architecture](docs/ARCHITECTURE.md).
 
 ```bash
 make test-integration   # Isolated tmpfs PostgreSQL, HTTP tests, race detector, vet
+make test-worker-process # Separate run: real worker crash and shutdown recovery
 make down               # Stops only Relay development; preserves its DB volume
 ```
 
@@ -69,6 +72,7 @@ internal/httpapi/             authentication, validation, HTTP contract tests
 internal/storage/             SQL, transactions and real PostgreSQL tests
 internal/delivery/            outbound security/signing primitives and TLS tests
 internal/secrets/             AES-GCM keyring and private-file loading
+internal/worker/              one-claim lease diagnostic and shutdown handling
 internal/storage/migrations/  embedded, explicit versioned SQL
 compose.yaml                  persistent development environment
 compose.test.yaml             disposable integration environment
@@ -76,7 +80,8 @@ docs/ROADMAP.md               phased milestones and acceptance criteria
 deploy/kubernetes/            historical scaffold manifests; not current deployment
 ```
 
-No public hostname, shared proxy connection or worker is configured. The existing
+No public hostname or shared proxy connection is configured. The lease-only worker
+is an opt-in Compose profile; it has no outbound delivery behavior. The existing
 Kubernetes examples need database/secret planning before they can run this version;
 cluster lifecycle belongs to [platform-lab](https://github.com/BoniLuan/platform-lab).
 Do not use the scaffold manifests as a production deployment.

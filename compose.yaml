@@ -84,5 +84,22 @@ services:
     cpus: 0.5
     logging:
       driver: none
+  relay-worker:
+    image: relay:dev
+    build: .
+    profiles: [worker]
+    command: [worker]
+    environment:
+      RELAY_DATABASE_URL: postgres://relay_dev:${RELAY_DB_PASSWORD:?Set RELAY_DB_PASSWORD in .env}@relay-db:5432/relay_dev?sslmode=disable
+    depends_on:
+      relay-db: {condition: service_healthy}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.5
+    restart: "no"
+    stop_grace_period: 5s
+    logging: *logs
 volumes:
   relay_pgdata:
