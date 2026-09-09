@@ -19,9 +19,21 @@ submissions create one event/delivery; commit failure leaves neither accepted ev
 nor delivery; retry after rollback succeeds; events survive API pool/server restart.
 Run `make test-integration` for race-enabled HTTP/database tests and vet.
 
-## 2 — Safe, reliable delivery (planned)
+## 2a — Safe outbound primitives (implemented; not wired to the API)
 
-Design outbound SSRF/DNS/redirect/TLS policy and signing-secret lifecycle first.
+A conservative public-address policy, DNS-pinned HTTPS attempts, no proxies or
+redirects, bounded request/response handling, in-memory HMAC signing and receiver
+verification. See [the security contract](DELIVERY_SECURITY.md).
+
+Acceptance: private and mixed DNS answers never reach the dialer; re-resolution
+blocks rebinding between attempts; TLS verification remains enabled; redirects
+are not followed; response limits and deadlines hold; tampering/expired signatures
+fail; secrets are redacted. Tests use only local TLS fixtures.
+
+## 2b — Durable secrets and reliable worker (planned)
+
+Implement the mandatory signing-secret lifecycle described in the security contract
+before wiring the tested outbound primitives to queued work.
 Add a separately launched worker, atomic claims, expiring leases, bounded request
 and response handling, HMAC signatures, attempt history and bounded jittered retries.
 

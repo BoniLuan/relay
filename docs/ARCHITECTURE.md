@@ -64,11 +64,17 @@ leases. Delivery is at least once: a receiver can process a request before the
 worker crashes or loses the response. Stable event IDs support receiver deduplication;
 Relay does not promise exactly-once delivery.
 
-Before outbound requests: design SSRF-safe DNS resolution and connection pinning,
+The isolated `internal/delivery` primitives now implement the initial transport and
+in-memory signing contract; see [delivery security](DELIVERY_SECURITY.md). They are
+not connected to the API or queue. Durable signing-secret management is still a
+mandatory prerequisite to worker activation.
+
+The outbound policy covers SSRF-safe DNS resolution and connection pinning,
 private/special-address rejection for IPv4 and IPv6, redirect policy, request
-timeouts, response-size bounds, TLS verification and secret storage/rotation.
-Format validation of a stored HTTPS URL is not sufficient. Add HMAC timestamps
-and receiver verification guidance together with signing, never log secrets.
+timeouts, response-size bounds and TLS verification. Secret storage/rotation still
+needs implementation before worker activation. Format validation of a stored HTTPS
+URL is not sufficient; signing and receiver verification now have a tested wire
+contract in the isolated package.
 
 Then implement attempt history, retry backoff/jitter with maximum attempts,
 lease recovery after crashes, controlled replay and metrics. Synthetic receivers

@@ -79,7 +79,8 @@ URLs and payloads are not written to application error logs.
 Future delivery will be **at least once**. Ingestion idempotency does not prevent
 a receiver from seeing the same event multiple times after network failures or
 worker crashes. Receivers must deduplicate using the stable event ID. Outbound
-signing, secret lifecycle, DNS/SSRF controls and replay are not implemented yet.
+delivery is not enabled. Isolated signing and DNS/SSRF primitives are tested in
+`internal/delivery`; durable secrets, worker integration and replay remain planned.
 
 ## Database log privacy
 

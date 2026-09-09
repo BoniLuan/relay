@@ -5,7 +5,9 @@ A small Go service for durable webhook event ingestion, built as a backend engin
 **Implemented:** bearer authentication, client-owned HTTPS destination registration,
 PostgreSQL migrations, atomic event + pending delivery persistence, client-scoped
 idempotency, authenticated event lookup, health endpoints and graceful shutdown.
-**Not implemented:** outbound requests, signing, retries, delivery history, replay,
+**Not enabled:** outbound event delivery. Tested HTTPS/signing primitives exist in
+`internal/delivery`, but no worker calls them.
+**Not implemented:** durable signing secrets, retries, delivery history, replay,
 client/key lifecycle management or public deployment. Pending deliveries stay pending.
 
 ## Run locally with Docker Compose
@@ -59,6 +61,7 @@ Go when using `make test-integration`. Native `make run` requires a Relay-only
 cmd/relay/                    api, migrate and create-client commands
 internal/httpapi/             authentication, validation, HTTP contract tests
 internal/storage/             SQL, transactions and real PostgreSQL tests
+internal/delivery/            outbound security/signing primitives and TLS tests
 internal/storage/migrations/  embedded, explicit versioned SQL
 compose.yaml                  persistent development environment
 compose.test.yaml             disposable integration environment
@@ -70,3 +73,7 @@ No public hostname, shared proxy connection or worker is configured. The existin
 Kubernetes examples need database/secret planning before they can run this version;
 cluster lifecycle belongs to [platform-lab](https://github.com/BoniLuan/platform-lab).
 Do not use the scaffold manifests as a production deployment.
+
+The next-step implementation and its activation requirements are documented in
+[delivery security](docs/DELIVERY_SECURITY.md). The primitives do not start network
+requests by themselves and are not connected to event ingestion.
