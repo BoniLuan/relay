@@ -30,10 +30,21 @@ blocks rebinding between attempts; TLS verification remains enabled; redirects
 are not followed; response limits and deadlines hold; tampering/expired signatures
 fail; secrets are redacted. Tests use only local TLS fixtures.
 
-## 2b — Durable secrets and reliable worker (planned)
+## 2b — Durable destination signing secrets (implemented)
 
-Implement the mandatory signing-secret lifecycle described in the security contract
-before wiring the tested outbound primitives to queued work.
+Migration 002, private AES-256-GCM keyring, canary verification and owner-scoped
+staging, activation, rotation/revocation and one-time secret disclosure. No worker.
+See [signing-secret lifecycle](SIGNING_SECRETS.md).
+
+Acceptance: only owners manage keys; concurrent generation creates one staged
+version; commit failure discloses no secret; restart/key rollover preserve keys;
+wrong master keys, tampering and ciphertext copying fail; revoked keys are not
+reused. A backup/restore procedure is documented; a full restore drill remains open.
+
+## 2c — Reliable worker (planned)
+
+Connect the tested secret lifecycle and outbound primitives to queued work. Pin a
+secret version for each attempt and re-read the active version for retries.
 Add a separately launched worker, atomic claims, expiring leases, bounded request
 and response handling, HMAC signatures, attempt history and bounded jittered retries.
 

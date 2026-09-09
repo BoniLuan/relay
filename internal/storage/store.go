@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/BoniLuan/relay/internal/secrets"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -21,7 +22,10 @@ var (
 	ErrConflict       = errors.New("idempotency key reused with a different request")
 )
 
-type Store struct{ pool *pgxpool.Pool }
+type Store struct {
+	pool    *pgxpool.Pool
+	keyring *secrets.Keyring
+}
 
 func Open(ctx context.Context, url string) (*Store, error) {
 	config, err := pgxpool.ParseConfig(url)
@@ -39,7 +43,13 @@ func Open(ctx context.Context, url string) (*Store, error) {
 func (s *Store) Close() { s.pool.Close() }
 func (s *Store) Ready(ctx context.Context) error {
 	var version int
-	return s.pool.QueryRow(ctx, "SELECT version FROM schema_migrations WHERE version = 1").Scan(&version)
+	if err := s.pool.QueryRow(ctx, "SELECT version FROM schema_migrations WHERE version = $1", schemaVersion).Scan(&version); err != nil {
+		return err
+	}
+	if s.keyring != nil {
+		return s.CheckKeyring(ctx)
+	}
+	return nil
 }
 
 // NewID uses a random UUID, avoiding a separate ID library or database extension.
@@ -166,3 +176,6 @@ func rollback(tx pgx.Tx) {
 	defer cancel()
 	_ = tx.Rollback(ctx)
 }
+
+// WithKeyring is startup-only configuration; do not mutate a running Store.
+func (s *Store) WithKeyring(keyring *secrets.Keyring) *Store { s.keyring = keyring; return s }

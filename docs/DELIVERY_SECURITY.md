@@ -3,8 +3,8 @@
 ## Status and boundary
 
 `internal/delivery` implements a bounded HTTPS attempt and in-memory signing and
-verification. It is not called by the API. No worker, outbound command, durable
-signing key or scheduler is enabled. Existing accepted events remain pending.
+verification. It is not called by the API. No worker, outbound command or scheduler is enabled. Durable signing keys now have
+an [owner-scoped lifecycle](SIGNING_SECRETS.md). Existing accepted events remain pending.
 
 This milestone isolates the network security behavior so it can be reviewed before
 integrating the queue. Run `make test-integration`; the delivery tests also run
@@ -81,27 +81,13 @@ Receivers must verify the signature, then atomically deduplicate the event ID wi
 their business operation. A valid signature alone does not stop replay within the
 time window. Each future retry gets a fresh timestamp but the same event ID.
 
-## Secret lifecycle before worker activation (planned, mandatory)
+## Secret lifecycle (implemented separately)
 
-The next submilestone must implement and test these requirements before connecting
-`Sender` to pending deliveries:
-
-1. Generate one secret per destination; show it once only to the authenticated
-   owner. Existing destinations require explicit provisioning; never silently
-   invent a key that the receiver cannot know.
-2. Encrypt persisted keys with AES-256-GCM using a random nonce and associated
-   destination/client IDs. Store ciphertext and key-version metadata, never raw
-   secrets. Load the master encryption key from a Relay-owned secret file, outside
-   Git and separate from database backups; fail closed if unavailable.
-3. Define explicit rotation/revocation and how in-flight attempts pin a secret
-   version. Keep receiver overlap deliberate; do not send an old key indefinitely.
-4. Test cross-owner provisioning, wrong master keys, ciphertext tampering,
-   associated-data mismatch, process restart, rotation and log redaction.
-5. Document a backup/restore procedure that accounts for both encrypted data and
-   independently protected encryption keys. No shared VPS credentials are reused.
-
-Only after these conditions are satisfied should a separate worker process claim
-jobs with leases and persist attempts/retries. That work remains milestone 2b.
+[Milestone 2b](SIGNING_SECRETS.md) implements encrypted persistence, one-time owner
+disclosure, staged activation, rotation/revocation and master-key canaries. The guide
+documents independent key backups and the remaining restore drill. The future worker
+must re-read the active secret before each attempt, pin that version and never fall
+back to retired/revoked keys. No queue integration is enabled yet.
 
 ## Tests and Go study path
 

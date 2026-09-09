@@ -1,3 +1,6 @@
+export RELAY_RUN_UID := $(shell id -u)
+export RELAY_RUN_GID := $(shell id -g)
+
 IMAGE ?= relay:lab
 LAB_KUBECONFIG ?= $(abspath ../platform-lab/.local/kubeconfig)
 KUBECTL = kubectl --kubeconfig "$(LAB_KUBECONFIG)" --context kind-portfolio-lab
@@ -40,3 +43,11 @@ migrate:
 	docker compose run --rm --build relay-admin migrate
 client:
 	docker compose run --rm relay-admin create-client "$(NAME)"
+
+.PHONY: keyring register-keyring
+keyring:
+	mkdir -p .local
+	docker build -t relay:dev .
+	docker run --rm --network none --user "$(RELAY_RUN_UID):$(RELAY_RUN_GID)" -v "$(CURDIR)/.local:/keys" relay:dev keyring-init /keys/keyring.json
+register-keyring:
+	docker compose run --rm relay-admin register-keyring

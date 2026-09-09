@@ -3,12 +3,14 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"github.com/BoniLuan/relay/internal/secrets"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -33,6 +35,18 @@ func TestPostgresHTTP(t *testing.T) {
 	}
 	defer db.Close()
 	if err = db.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	keyPath := filepath.Join(t.TempDir(), "keyring.json")
+	if err = secrets.InitFile(keyPath); err != nil {
+		t.Fatal(err)
+	}
+	keyring, err := secrets.LoadFile(keyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.WithKeyring(keyring)
+	if err = db.RegisterKeyring(ctx); err != nil {
 		t.Fatal(err)
 	}
 	_, token, err := db.ProvisionClient(ctx, "http-test")
@@ -74,6 +88,26 @@ func TestPostgresHTTP(t *testing.T) {
 	if err = json.Unmarshal(request("POST", "/api/v1/destinations", `{"url":"https://example.com/hook"}`, "", token, 201), &d); err != nil {
 		t.Fatal(err)
 	}
+	secretPath := "/api/v1/destinations/" + d.ID + "/signing-secrets"
+	request("POST", secretPath, `{}`, "", otherToken, 404)
+	var credential struct {
+		Version int    `json:"version"`
+		Secret  string `json:"secret"`
+	}
+	if err = json.Unmarshal(request("POST", secretPath, `{}`, "", token, 201), &credential); err != nil || credential.Secret == "" {
+		t.Fatal("missing staged credential")
+	}
+	request("POST", secretPath, `{}`, "", token, 409)
+	listing := request("GET", secretPath, "", "", token, 200)
+	if strings.Contains(string(listing), credential.Secret) || strings.Contains(string(listing), "ciphertext") {
+		t.Fatal("metadata exposed secret")
+	}
+	request("POST", secretPath+"/1/activate", `{}`, "", otherToken, 404)
+	request("POST", secretPath+"/1/activate", `{}`, "", token, 204)
+	request("POST", secretPath+"/1/activate", `{}`, "", token, 204)
+	request("DELETE", secretPath+"/1", "", "", otherToken, 404)
+	request("DELETE", secretPath+"/1", "", "", token, 204)
+	request("POST", secretPath+"/1/activate", `{}`, "", token, 409)
 	body := `{"destination_id":"` + d.ID + `","payload":{"value":42}}`
 	// All are syntactically valid JSON but cannot be represented as JSONB.
 	for _, payload := range []string{`{"value":"RELAY_LOG_SENTINEL\u0000"}`, `1e1000000`, `1e-1000000`, `"\ud800"`} {
@@ -115,6 +149,7 @@ func TestPostgresHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
+	db.WithKeyring(keyring)
 	server = httptest.NewServer(NewHandler(db, slog.New(slog.NewTextHandler(io.Discard, nil))))
 	defer server.Close()
 	request("GET", "/api/v1/events/"+event.ID, "", "", token, 200)

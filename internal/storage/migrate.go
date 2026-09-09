@@ -9,6 +9,11 @@ import (
 //go:embed migrations/001_ingestion.sql
 var initialSchema string
 
+//go:embed migrations/002_signing_secrets.sql
+var signingSchema string
+
+const schemaVersion = 2
+
 // Migrate is invoked explicitly by the CLI, never by API startup. The transaction
 // and advisory lock make the initial migration atomic and safe to run twice.
 func (s *Store) Migrate(ctx context.Context) error {
@@ -27,14 +32,16 @@ func (s *Store) Migrate(ctx context.Context) error {
 	if err = tx.QueryRow(ctx, "SELECT COALESCE(max(version),0) FROM schema_migrations").Scan(&version); err != nil {
 		return err
 	}
-	if version > 1 {
+	if version > schemaVersion {
 		return fmt.Errorf("unsupported schema version %d", version)
 	}
-	if version == 0 {
-		if _, err = tx.Exec(ctx, initialSchema); err != nil {
+	migrations := []string{initialSchema, signingSchema}
+	for version < schemaVersion {
+		if _, err = tx.Exec(ctx, migrations[version]); err != nil {
 			return err
 		}
-		if _, err = tx.Exec(ctx, "INSERT INTO schema_migrations (version) VALUES (1)"); err != nil {
+		version++
+		if _, err = tx.Exec(ctx, "INSERT INTO schema_migrations (version) VALUES ($1)", version); err != nil {
 			return err
 		}
 	}

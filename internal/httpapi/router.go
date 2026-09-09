@@ -15,11 +15,17 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/BoniLuan/relay/internal/delivery"
+	"github.com/BoniLuan/relay/internal/secrets"
 	"github.com/BoniLuan/relay/internal/storage"
 )
 
 // Backend is the small persistence boundary exercised by HTTP tests.
 type Backend interface {
+	StageSigningSecret(context.Context, string, string) (storage.SigningSecret, delivery.Secret, error)
+	ListSigningSecrets(context.Context, string, string) ([]storage.SigningSecret, error)
+	ActivateSigningSecret(context.Context, string, string, int) error
+	RevokeSigningSecret(context.Context, string, string, int) error
 	Ready(context.Context) error
 	Authenticate(context.Context, string) (string, error)
 	CreateDestination(context.Context, string, string) (storage.Destination, error)
@@ -56,6 +62,10 @@ func NewHandler(db Backend, logger *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /api/v1/destinations", a.auth(a.destination))
 	mux.HandleFunc("POST /api/v1/events", a.auth(a.ingest))
 	mux.HandleFunc("GET /api/v1/events/{id}", a.auth(a.event))
+	mux.HandleFunc("POST /api/v1/destinations/{id}/signing-secrets", a.auth(a.stageSecret))
+	mux.HandleFunc("GET /api/v1/destinations/{id}/signing-secrets", a.auth(a.listSecrets))
+	mux.HandleFunc("POST /api/v1/destinations/{id}/signing-secrets/{version}/activate", a.auth(a.activateSecret))
+	mux.HandleFunc("DELETE /api/v1/destinations/{id}/signing-secrets/{version}", a.auth(a.revokeSecret))
 	return mux
 }
 func (a api) auth(next func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
@@ -206,6 +216,10 @@ func (a api) event(w http.ResponseWriter, r *http.Request, client string) {
 }
 func (a api) failure(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
+	case errors.Is(err, secrets.ErrKeyring):
+		problem(w, 503, "signing keys unavailable")
+	case errors.Is(err, storage.ErrSecretState):
+		problem(w, 409, "signing secret state conflict; inspect destination secret metadata")
 	case errors.Is(err, storage.ErrInvalidPayload):
 		problem(w, 400, "payload must be representable as PostgreSQL JSONB")
 	case errors.Is(err, storage.ErrNotFound):
@@ -215,7 +229,11 @@ func (a api) failure(w http.ResponseWriter, r *http.Request, err error) {
 	default:
 		// Database errors may contain payloads, SQL parameters or credentials.
 		a.logger.Error("database operation failed", "method", r.Method, "operation", r.Pattern)
-		problem(w, 503, "storage unavailable; retry with the same idempotency key and body")
+		if r.Pattern == "POST /api/v1/events" {
+			problem(w, 503, "storage unavailable; retry with the same idempotency key and body")
+		} else {
+			problem(w, 503, "storage unavailable; inspect operation status before retrying")
+		}
 	}
 }
 func problem(w http.ResponseWriter, status int, message string) {

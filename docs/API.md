@@ -80,7 +80,8 @@ Future delivery will be **at least once**. Ingestion idempotency does not preven
 a receiver from seeing the same event multiple times after network failures or
 worker crashes. Receivers must deduplicate using the stable event ID. Outbound
 delivery is not enabled. Isolated signing and DNS/SSRF primitives are tested in
-`internal/delivery`; durable secrets, worker integration and replay remain planned.
+`internal/delivery`; durable secrets now have [an owner-scoped lifecycle](SIGNING_SECRETS.md). Worker
+integration and replay remain planned.
 
 ## Database log privacy
 
@@ -91,3 +92,10 @@ PostgreSQL can include JSON payload excerpts. Input compatibility is checked wit
 do not add payloads to SQL exception messages or enable SQL tracing with real data.
 Run `make test-integration` to check actual container logs with synthetic markers.
 Native/custom deployments must apply the same PostgreSQL logging settings.
+
+## Destination signing credentials
+
+Stage, inspect metadata, activate and revoke signing-secret versions through the
+[signing-secret API](SIGNING_SECRETS.md#owner-api). These operations require owner
+authentication and do not start outbound delivery. The one-time staging response
+is the only endpoint that discloses a signing credential.

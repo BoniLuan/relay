@@ -21,7 +21,8 @@ storage implementation, without generic repository or service layers.
 Each client has a random bearer token stored only as a SHA-256 digest. The
 administrative CLI displays the raw token once. Each destination belongs to one
 client; an event's composite foreign key enforces the same ownership in SQL.
-Destinations are immutable in this milestone, and no signing secrets exist yet.
+Destination URLs are immutable. Signing credentials have a separate versioned
+[lifecycle](SIGNING_SECRETS.md) and are stored only as AES-GCM ciphertext.
 
 Ingestion checks ownership and JSONB compatibility, inserts an event, and inserts its pending delivery in
 one transaction. `UNIQUE (client_id, idempotency_key)` arbitrates concurrent
@@ -36,8 +37,8 @@ A deferred-constraint test forces failure at actual commit and verifies rollback
 concurrent tests verify one event/delivery for twelve simultaneous submissions.
 HTTP integration tests reopen the application pool and verify durable lookup.
 
-Migrations are embedded SQL but run only through `relay migrate`. The initial
-migration and version record commit atomically under a transaction advisory lock.
+Migrations are embedded SQL but run only through `relay migrate`. Pending
+migrations and their version records commit atomically under a transaction advisory lock.
 Migration 001 is append-only: future changes need new numbered migrations and
 runner updates. There is no automatic down migration; restore or forward-fix after
 a reviewed backup. Readiness checks DB access and the required migration; liveness
@@ -66,13 +67,13 @@ Relay does not promise exactly-once delivery.
 
 The isolated `internal/delivery` primitives now implement the initial transport and
 in-memory signing contract; see [delivery security](DELIVERY_SECURITY.md). They are
-not connected to the API or queue. Durable signing-secret management is still a
-mandatory prerequisite to worker activation.
+not connected to the API or queue. Durable signing-secret management is implemented separately; the worker must pin
+the selected version per attempt and re-read the active version for retries.
 
 The outbound policy covers SSRF-safe DNS resolution and connection pinning,
 private/special-address rejection for IPv4 and IPv6, redirect policy, request
-timeouts, response-size bounds and TLS verification. Secret storage/rotation still
-needs implementation before worker activation. Format validation of a stored HTTPS
+timeouts, response-size bounds and TLS verification. Secret storage/rotation is implemented in
+`internal/storage/signing.go` with explicit owner authorization. Format validation of a stored HTTPS
 URL is not sufficient; signing and receiver verification now have a tested wire
 contract in the isolated package.
 
@@ -104,3 +105,11 @@ logging are disabled for ordinary errors. The integration runner checks actual
 container logs after a deliberately failed JSONB cast and a deferred constraint
 failure. Synthetic payload markers must be absent while the operational error
 remains. SQL exception messages must never include payloads or secrets.
+
+## Versioned signing secrets
+
+The keyring is an API startup dependency, loaded from a private file and checked
+against encrypted database canaries. Registration is explicit; startup never
+modifies keys or runs migrations. Migration 002 preserves v1 data. Lifecycle
+operations lock the destination row to serialize concurrency. Staging exports
+plaintext only after commit; metadata reads do not decrypt credentials.

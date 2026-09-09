@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/BoniLuan/relay/internal/delivery"
 	"github.com/BoniLuan/relay/internal/storage"
 )
 
@@ -117,3 +118,13 @@ func TestStorageErrorDoesNotLeakIntoLogs(t *testing.T) {
 		}
 	}
 }
+
+func (f *fakeBackend) StageSigningSecret(context.Context, string, string) (storage.SigningSecret, delivery.Secret, error) {
+	f.calls++
+	return storage.SigningSecret{}, delivery.Secret{}, f.err
+}
+func (f *fakeBackend) ListSigningSecrets(context.Context, string, string) ([]storage.SigningSecret, error) {
+	return nil, f.err
+}
+func (f *fakeBackend) ActivateSigningSecret(context.Context, string, string, int) error { return f.err }
+func (f *fakeBackend) RevokeSigningSecret(context.Context, string, string, int) error   { return f.err }

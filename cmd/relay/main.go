@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/BoniLuan/relay/internal/httpapi"
+	"github.com/BoniLuan/relay/internal/secrets"
 	"github.com/BoniLuan/relay/internal/storage"
 )
 
@@ -26,6 +27,20 @@ func main() {
 func run(logger *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	command := "api"
+	if len(os.Args) > 1 {
+		command = os.Args[1]
+	}
+	if command == "keyring-init" {
+		if len(os.Args) != 3 {
+			return errors.New("usage: relay keyring-init PATH")
+		}
+		if err := secrets.InitFile(os.Args[2]); err != nil {
+			return err
+		}
+		logger.Info("keyring created; back it up separately from database data")
+		return nil
+	}
 	databaseURL := os.Getenv("RELAY_DATABASE_URL")
 	if databaseURL == "" {
 		return errors.New("RELAY_DATABASE_URL is required")
@@ -35,10 +50,7 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	defer db.Close()
-	command := "api"
-	if len(os.Args) > 1 {
-		command = os.Args[1]
-	}
+
 	switch command {
 	case "migrate":
 		migrationCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -61,9 +73,31 @@ func run(logger *slog.Logger) error {
 		// Explicit administrative output; never include the token in application logs.
 		fmt.Printf("client_id=%s\ntoken=%s\n", id, token)
 		return nil
+	case "register-keyring":
+		keyring, err := secrets.LoadFile(os.Getenv("RELAY_KEYRING_FILE"))
+		if err != nil {
+			return err
+		}
+		keyCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		if err = db.WithKeyring(keyring).RegisterKeyring(keyCtx); err != nil {
+			return errors.New("keyring registration failed")
+		}
+		logger.Info("keyring registered")
+		return nil
 	case "api":
+		keyring, err := secrets.LoadFile(os.Getenv("RELAY_KEYRING_FILE"))
+		if err != nil {
+			return err
+		}
+		keyCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		if err = db.WithKeyring(keyring).CheckKeyring(keyCtx); err != nil {
+			return errors.New("registered keyring verification failed")
+		}
+
 	default:
-		return errors.New("usage: relay [api|migrate|create-client NAME]")
+		return errors.New("usage: relay [api|migrate|create-client NAME|keyring-init PATH|register-keyring]")
 	}
 	addr := os.Getenv("RELAY_HTTP_ADDR")
 	if addr == "" {

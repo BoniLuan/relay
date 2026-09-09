@@ -5,9 +5,11 @@ A small Go service for durable webhook event ingestion, built as a backend engin
 **Implemented:** bearer authentication, client-owned HTTPS destination registration,
 PostgreSQL migrations, atomic event + pending delivery persistence, client-scoped
 idempotency, authenticated event lookup, health endpoints and graceful shutdown.
+Destination signing secrets support encrypted storage, staged activation, rotation
+and revocation; see [the lifecycle guide](docs/SIGNING_SECRETS.md).
 **Not enabled:** outbound event delivery. Tested HTTPS/signing primitives exist in
 `internal/delivery`, but no worker calls them.
-**Not implemented:** durable signing secrets, retries, delivery history, replay,
+**Not implemented:** worker, retries, delivery history, replay,
 client/key lifecycle management or public deployment. Pending deliveries stay pending.
 
 ## Run locally with Docker Compose
@@ -20,8 +22,10 @@ database publishes no host port. Kubernetes is optional and not needed here.
 cp .env.example .env
 # Replace the placeholder in .env with the output of: openssl rand -hex 24
 chmod 600 .env
+make keyring
 make db
 make migrate
+make register-keyring
 make client NAME=local
 # Save the returned token securely: this is its only display.
 make up
@@ -29,8 +33,9 @@ curl --fail http://127.0.0.1:18081/readyz
 ```
 
 `make migrate` builds the application and runs the migration explicitly. Repeating
-it is safe. The API never applies migrations; `/readyz` returns 503 until PostgreSQL
-and schema version 1 are available. `/livez` checks only the HTTP process.
+it is safe. The API verifies the registered keyring before listening and never
+applies migrations. Readiness checks PostgreSQL, schema version 2 and the loaded
+keyring; `/livez` checks only the HTTP process.
 `make client` is a local administrative operation with database access, not a
 public registration route. Tokens have 256 random bits; only SHA-256 hashes are
 stored. There is currently no token rotation/revocation command.
@@ -52,7 +57,8 @@ because one suite installs a temporary database trigger to force commit failure.
 With Go 1.27 installed, `make test` and `make vet` run local checks; database tests
 skip unless the dedicated test environment is configured. The host does not need
 Go when using `make test-integration`. Native `make run` requires a Relay-only
-`RELAY_DATABASE_URL`; the provided Compose database deliberately has no host binding.
+`RELAY_DATABASE_URL` and a private `RELAY_KEYRING_FILE`; the provided Compose
+database deliberately has no host binding.
 `RELAY_HTTP_ADDR` defaults to `127.0.0.1:18081` for native execution.
 
 ## Structure
@@ -62,6 +68,7 @@ cmd/relay/                    api, migrate and create-client commands
 internal/httpapi/             authentication, validation, HTTP contract tests
 internal/storage/             SQL, transactions and real PostgreSQL tests
 internal/delivery/            outbound security/signing primitives and TLS tests
+internal/secrets/             AES-GCM keyring and private-file loading
 internal/storage/migrations/  embedded, explicit versioned SQL
 compose.yaml                  persistent development environment
 compose.test.yaml             disposable integration environment
