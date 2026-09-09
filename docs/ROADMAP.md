@@ -2,26 +2,51 @@
 
 ## 0 — Scaffold (implemented)
 
-- Runnable standard-library HTTP server with graceful termination and health routes.
-- Loopback-only Compose environment and small Kubernetes lab manifests.
-- No background service started automatically by scaffolding.
+Standard-library HTTP server, JSON process logs, graceful termination, health
+routes, loopback Compose and optional Kubernetes scaffold examples.
 
-## 1 — Understand deployment
+## 1 — Durable authenticated ingress (implemented)
 
-Optional deployment learning runs independently in [platform-lab](https://github.com/BoniLuan/platform-lab). Follow [Relay’s deployment guide](KUBERNETES.md) to load its image into the shared cluster, inspect a Pod and Service, replace a Pod, and inspect probes. Remove Relay’s namespace when done; cluster lifecycle belongs to the platform repository. Explain each manifest field before adding abstractions. Application development can proceed without Kubernetes.
+- Administrative client provisioning; bearer token hashes and destination ownership.
+- Explicit PostgreSQL migration, bounded HTTP input and database deadlines.
+- Atomic event/pending-delivery creation and client-scoped, byte-exact idempotency.
+- Authenticated event lookup, database-aware readiness and dependency-free liveness.
+- Isolated Docker development and ephemeral integration test databases.
 
-## 2 — Durable event ingestion
+Acceptance: unauthorized requests fail; foreign destinations/events return 404;
+identical retries return one event; changed requests conflict; concurrent identical
+submissions create one event/delivery; commit failure leaves neither accepted event
+nor delivery; retry after rollback succeeds; events survive API pool/server restart.
+Run `make test-integration` for race-enabled HTTP/database tests and vet.
 
-Specify the event/destination API, authentication and ownership model, then add PostgreSQL, explicit migrations, validation and idempotency keys. Test duplicate submissions and transaction failures. Allocate a new database port only if host access is required and update the shared registry.
+## 2 — Safe, reliable delivery (planned)
 
-## 3 — Reliable delivery
+Design outbound SSRF/DNS/redirect/TLS policy and signing-secret lifecycle first.
+Add a separately launched worker, atomic claims, expiring leases, bounded request
+and response handling, HMAC signatures, attempt history and bounded jittered retries.
 
-Add a worker with durable job claims, leases, HMAC signing, SSRF-safe requests, bounded retries and attempt history. Test receiver errors, timeouts, worker crashes and duplicate delivery. Add a synthetic receiver fixture with a deliberate local-test policy.
+Acceptance: concurrent workers cannot own the same active lease; private/special
+addresses and redirect/DNS bypasses are blocked; timeouts and oversized responses
+are bounded; failures retry to a limit; crashes recover expired leases; a receiver
+can verify signatures and deduplicate stable event IDs. No exactly-once claim.
 
-## 4 — Operate and demonstrate
+## 3 — Operation and demonstration (planned)
 
-Add delivery metrics, traceable event IDs, replay commands, backup/restore instructions and a reproducible failure demo. Introduce a separate worker Deployment, configuration and Secrets; learn migration Jobs and persistent storage using disposable data.
+Add owner-scoped delivery history, controlled failed-delivery replay, token
+rotation/revocation, quotas, metrics, backup/restore and a reproducible failure demo.
 
-## 5 — Public portfolio deployment
+Acceptance: replay authorization and limits are tested; secrets/payloads are absent
+from logs; a backup restores into an isolated database; the demo explains duplicate
+delivery and recovery. Decide retention and idempotency expiry together.
 
-Choose Compose or a separately planned Kubernetes hosting environment based on experience. Define DNS/TLS routing, authentication, quotas and backups. Demonstrate integration with one existing project. Keep the lab disposable and production state separate.
+## 4 — Portfolio publication and optional Kubernetes (planned)
+
+Choose deployment based on measured resource needs. Plan DNS/TLS, credentials,
+backups and one explicitly authorized integration. Kubernetes learning remains
+independent in platform-lab; update application manifests with database/configuration
+requirements only when that work is chosen.
+
+Acceptance: existing VPS services are preserved; infrastructure allocations are
+recorded; public authentication/quotas and restore procedures are demonstrated.
+
+Stop after each milestone for code review and learning before starting the next.

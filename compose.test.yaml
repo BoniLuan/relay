@@ -1,0 +1,45 @@
+name: relay-test
+services:
+  relay-test-db:
+    image: postgres:17.11-alpine
+    # Retain operational errors without JSON context, statements or parameters.
+    command:
+      - postgres
+      - -c
+      - log_error_verbosity=terse
+      - -c
+      - log_min_error_statement=panic
+      - -c
+      - log_statement=none
+      - -c
+      - log_parameter_max_length=0
+      - -c
+      - log_parameter_max_length_on_error=0
+    environment:
+      POSTGRES_USER: relay_test
+      POSTGRES_PASSWORD: relay_test_ephemeral
+      POSTGRES_DB: relay_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -h 127.0.0.1 -U relay_test -d relay_test']
+      interval: 1s
+      timeout: 2s
+      retries: 30
+    mem_limit: 256m
+    cpus: 0.5
+  relay-tests:
+    image: golang:1.27-bookworm
+    working_dir: /src
+    user: "${RELAY_TEST_UID:-1000}:${RELAY_TEST_GID:-1000}"
+    environment:
+      GOCACHE: /src/.local/go-cache-test
+      GOMODCACHE: /src/.local/go-mod
+      RELAY_TEST_DATABASE_URL: postgres://relay_test:relay_test_ephemeral@relay-test-db:5432/relay_test?sslmode=disable
+    volumes:
+      - .:/src
+    depends_on:
+      relay-test-db: {condition: service_healthy}
+    command: [sh, -c, 'go test -p 1 -race -count=1 ./... && go vet ./...']
+    mem_limit: 768m
+    cpus: 1

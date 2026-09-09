@@ -1,0 +1,122 @@
+package httpapi
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/BoniLuan/relay/internal/storage"
+)
+
+func TestPostgresHTTP(t *testing.T) {
+	raw := os.Getenv("RELAY_TEST_DATABASE_URL")
+	if raw == "" {
+		t.Skip("run make test-integration")
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Hostname() != "relay-test-db" || u.Path != "/relay_test" || u.User == nil || u.User.Username() != "relay_test" {
+		t.Fatal("expected isolated test database")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	db, err := storage.Open(ctx, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err = db.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	_, token, err := db.ProvisionClient(ctx, "http-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, otherToken, err := db.ProvisionClient(ctx, "other-http-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(NewHandler(db, slog.New(slog.NewTextHandler(io.Discard, nil))))
+	defer server.Close()
+	request := func(method, path, body, key, credential string, want int) []byte {
+		t.Helper()
+		req, err := http.NewRequest(method, server.URL+path, strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Authorization", "Bearer "+credential)
+		req.Header.Set("Content-Type", "application/json")
+		if key != "" {
+			req.Header.Set("Idempotency-Key", key)
+		}
+		response, err := server.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer response.Body.Close()
+		result, err := io.ReadAll(response.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if response.StatusCode != want {
+			t.Fatalf("%s %s: %d %s; want %d", method, path, response.StatusCode, result, want)
+		}
+		return result
+	}
+	var d storage.Destination
+	if err = json.Unmarshal(request("POST", "/api/v1/destinations", `{"url":"https://example.com/hook"}`, "", token, 201), &d); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"destination_id":"` + d.ID + `","payload":{"value":42}}`
+	// All are syntactically valid JSON but cannot be represented as JSONB.
+	for _, payload := range []string{`{"value":"RELAY_LOG_SENTINEL\u0000"}`, `1e1000000`, `1e-1000000`, `"\ud800"`} {
+		invalidKey := storage.NewID()
+		invalidBody := `{"destination_id":"` + d.ID + `","payload":` + payload + `}`
+		response := request("POST", "/api/v1/events", invalidBody, invalidKey, token, 400)
+		if strings.Contains(string(response), "RELAY_LOG_SENTINEL") || strings.Contains(string(response), "retry") {
+			t.Fatal("invalid payload leaked or marked retryable")
+		}
+		// Rejection must not reserve the key or persist a partial event.
+		request("POST", "/api/v1/events", body, invalidKey, token, 201)
+	}
+	for _, payload := range []string{`null`, `"\ud83d\ude00"`, `9007199254740993`, `1e1000`, `"literal \\u0000"`} {
+		accepted := `{"destination_id":"` + d.ID + `","payload":` + payload + `}`
+		request("POST", "/api/v1/events", accepted, storage.NewID(), token, 201)
+	}
+	key := storage.NewID()
+	var event, replayed storage.Event
+	if err = json.Unmarshal(request("POST", "/api/v1/events", body, key, token, 201), &event); err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(request("POST", "/api/v1/events", body, key, token, 200), &replayed); err != nil {
+		t.Fatal(err)
+	}
+	if event.ID == "" || event.ID != replayed.ID {
+		t.Fatal("unstable event ID")
+	}
+	request("POST", "/api/v1/events", body+" ", key, token, 409)
+	request("POST", "/api/v1/events", body, key, otherToken, 404)
+	request("GET", "/api/v1/events/"+event.ID, "", "", otherToken, 404)
+	// Reopen the pool and HTTP server: acceptance must survive API restarts.
+	db.Close()
+	request("GET", "/readyz", "", "", token, 503)
+	request("GET", "/livez", "", "", token, 200)
+	request("POST", "/api/v1/events", body, key, token, 503)
+	server.Close()
+	db, err = storage.Open(ctx, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	server = httptest.NewServer(NewHandler(db, slog.New(slog.NewTextHandler(io.Discard, nil))))
+	defer server.Close()
+	request("GET", "/api/v1/events/"+event.ID, "", "", token, 200)
+	request("POST", "/api/v1/events", body, key, token, 200)
+}

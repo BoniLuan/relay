@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/BoniLuan/relay/internal/httpapi"
+	"github.com/BoniLuan/relay/internal/storage"
 )
 
 func main() {
@@ -24,18 +26,57 @@ func main() {
 func run(logger *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	databaseURL := os.Getenv("RELAY_DATABASE_URL")
+	if databaseURL == "" {
+		return errors.New("RELAY_DATABASE_URL is required")
+	}
+	db, err := storage.Open(ctx, databaseURL)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	command := "api"
+	if len(os.Args) > 1 {
+		command = os.Args[1]
+	}
+	switch command {
+	case "migrate":
+		migrationCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		if err := db.Migrate(migrationCtx); err != nil {
+			return errors.New("migration failed")
+		}
+		logger.Info("migrations applied")
+		return nil
+	case "create-client":
+		if len(os.Args) != 3 {
+			return errors.New("usage: relay create-client NAME")
+		}
+		provisionCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		id, token, err := db.ProvisionClient(provisionCtx, os.Args[2])
+		if err != nil {
+			return errors.New("client creation failed")
+		}
+		// Explicit administrative output; never include the token in application logs.
+		fmt.Printf("client_id=%s\ntoken=%s\n", id, token)
+		return nil
+	case "api":
+	default:
+		return errors.New("usage: relay [api|migrate|create-client NAME]")
+	}
 	addr := os.Getenv("RELAY_HTTP_ADDR")
 	if addr == "" {
 		addr = "127.0.0.1:18081"
 	}
 	server := &http.Server{
-		Addr: addr, Handler: httpapi.NewHandler(),
+		Addr: addr, Handler: httpapi.NewHandler(db, logger),
 		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second,
 		WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second,
 	}
 	result := make(chan error, 1)
 	go func() { result <- server.ListenAndServe() }()
-	logger.Info("relay scaffold listening", "address", addr)
+	logger.Info("relay API starting", "address", addr)
 	select {
 	case err := <-result:
 		if errors.Is(err, http.ErrServerClosed) {

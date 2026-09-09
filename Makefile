@@ -11,7 +11,7 @@ vet:
 run:
 	go run ./cmd/relay
 up:
-	docker compose up -d --build
+	docker compose up -d --build relay-api
 down:
 	docker compose down
 image:
@@ -27,3 +27,16 @@ lab-forward:
 	$(KUBECTL) -n relay-lab port-forward --address 127.0.0.1 service/relay-api 18080:80
 lab-remove:
 	$(KUBECTL) delete namespace relay-lab
+
+# The test database uses tmpfs and never publishes a host port.
+.PHONY: test-integration db migrate client
+
+test-integration:
+	@sh scripts/test-integration.sh
+
+db:
+	docker compose up -d relay-db
+migrate:
+	docker compose run --rm --build relay-admin migrate
+client:
+	docker compose run --rm relay-admin create-client "$(NAME)"

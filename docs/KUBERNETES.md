@@ -1,3 +1,9 @@
+> **Scaffold reference only:** the durable-ingestion application now requires
+> `RELAY_DATABASE_URL` and an explicitly migrated PostgreSQL database. The manifests
+> below do not supply them and will not run the current application as-is. Compose
+> is the supported development path. Adapting these optional manifests is a later
+> milestone; cluster lifecycle remains in platform-lab.
+
 # Deploy Relay into the shared learning cluster
 
 Relay owns its application manifests in `deploy/kubernetes/`. Cluster creation, tooling and credentials belong to [platform-lab](https://github.com/BoniLuan/platform-lab). Relay also works independently through Go or Compose.

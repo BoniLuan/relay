@@ -1,12 +1,47 @@
 name: relay-dev
 services:
+  relay-db:
+    image: postgres:17.11-alpine
+    # Retain operational errors without JSON context, statements or parameters.
+    command:
+      - postgres
+      - -c
+      - log_error_verbosity=terse
+      - -c
+      - log_min_error_statement=panic
+      - -c
+      - log_statement=none
+      - -c
+      - log_parameter_max_length=0
+      - -c
+      - log_parameter_max_length_on_error=0
+    environment:
+      POSTGRES_USER: relay_dev
+      POSTGRES_DB: relay_dev
+      POSTGRES_PASSWORD: ${RELAY_DB_PASSWORD:?Set RELAY_DB_PASSWORD in .env}
+    volumes:
+      - relay_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -h 127.0.0.1 -U relay_dev -d relay_dev']
+      interval: 2s
+      timeout: 2s
+      retries: 15
+    mem_limit: 256m
+    cpus: 0.5
+    restart: "no"
+    logging: &logs
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
   relay-api:
     image: relay:dev
     build: .
     ports:
       - "127.0.0.1:18081:8080"
-    environment:
+    environment: &app-env
       RELAY_HTTP_ADDR: :8080
+      RELAY_DATABASE_URL: postgres://relay_dev:${RELAY_DB_PASSWORD:?Set RELAY_DB_PASSWORD in .env}@relay-db:5432/relay_dev?sslmode=disable
+    depends_on:
+      relay-db: {condition: service_healthy}
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
@@ -14,13 +49,25 @@ services:
     cpus: 0.5
     restart: "no"
     stop_grace_period: 15s
-    logging:
-      driver: json-file
-      options:
-        max-size: "5m"
-        max-file: "2"
+    logging: *logs
     healthcheck:
       test: [CMD, wget, --quiet, --spider, http://127.0.0.1:8080/readyz]
       interval: 10s
       timeout: 2s
       retries: 3
+  relay-admin:
+    image: relay:dev
+    build: .
+    profiles: [tools]
+    environment: *app-env
+    depends_on:
+      relay-db: {condition: service_healthy}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.5
+    logging:
+      driver: none
+volumes:
+  relay_pgdata:
