@@ -92,10 +92,15 @@ func run(logger *slog.Logger) error {
 	case "worker":
 		flags := flag.NewFlagSet("worker", flag.ContinueOnError)
 		flags.SetOutput(io.Discard)
-		send := flags.Bool("send", false, "perform one signed HTTP attempt")
+		send := flags.Bool("send", false, "enable signed HTTP delivery")
+		continuous := flags.Bool("continuous", false, "process due deliveries until shutdown")
+		poll := flags.Duration("poll-interval", time.Second, "minimum wait between cycles, 1s to 30s")
 		duration := flags.Duration("lease-duration", 30*time.Second, "lease duration, 1ms to 5m")
 		if err = flags.Parse(os.Args[2:]); err != nil || flags.NArg() != 0 {
-			return errors.New("usage: relay worker [--send] [--lease-duration 30s]")
+			return errors.New("usage: relay worker [--send [--continuous] [--poll-interval 1s]] [--lease-duration 30s]")
+		}
+		if *continuous && !*send {
+			return errors.New("--continuous requires --send")
 		}
 		if *send {
 			keyring, loadErr := secrets.LoadFile(os.Getenv("RELAY_KEYRING_FILE"))
@@ -111,6 +116,9 @@ func run(logger *slog.Logger) error {
 			return errors.New("worker requires an available, migrated database")
 		}
 		if *send {
+			if *continuous {
+				return worker.RunContinuous(ctx, db, delivery.NewSender(), logger, *duration, *poll)
+			}
 			return worker.RunOnce(ctx, db, delivery.NewSender(), logger, *duration)
 		}
 		return worker.Run(ctx, db, logger, *duration)

@@ -82,7 +82,8 @@ URLs and payloads are not written to application error logs.
 
 At-least-once delivery is the product direction. The current explicit worker makes
 one signed attempt per invocation and persists [bounded retries](RETRIES.md) for
-selected failures and interrupted work. Later invocations process due retries.
+selected failures and interrupted work. Later cycles of the explicit [continuous worker](CONTINUOUS_WORKER.md), or
+manual one-cycle invocations, process due retries.
 Receivers must deduplicate using the stable event ID; ingestion idempotency alone
 cannot prevent duplicate receiver side effects. See [delivery attempts](DELIVERY_ATTEMPTS.md)
 and [the signing-secret lifecycle](SIGNING_SECRETS.md). Replay remains planned.
@@ -117,5 +118,9 @@ retry; see [retry semantics](RETRIES.md). `succeeded` requires a complete bounde
 Duplicate ingestion reports these states without creating another attempt.
 
 `retry_wait` means a retry was scheduled in PostgreSQL. Repeated ingestion never
-resets its attempt count or deadline. There is no continuous polling worker yet;
-processing requires a later explicit `make deliver-once` invocation.
+resets its attempt count or deadline. The explicitly started continuous worker processes due retries automatically;
+otherwise processing requires another `make deliver-once` invocation.
+
+Missing/decryption-failed signing keys pause new claims for that destination for
+60 seconds. Its unstarted delivery remains `pending` without consuming an attempt.
+The API currently exposes neither the cooldown deadline nor an early-resume action.

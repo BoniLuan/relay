@@ -105,7 +105,7 @@ services:
     image: relay:dev
     build: .
     profiles: [delivery]
-    command: [worker, --send]
+    command: [worker, --send, --continuous]
     user: "${RELAY_RUN_UID:?Use make or set RELAY_RUN_UID}:${RELAY_RUN_GID:?Use make or set RELAY_RUN_GID}"
     volumes:
       - type: bind

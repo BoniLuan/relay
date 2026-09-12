@@ -79,7 +79,9 @@ PostgreSQL alone. Expired started attempts keep `unknown` history. Migration 005
 [bounded retries](RETRIES.md) for interrupted work and selected failures. Counts
 and schedules survive restart; at most three attempt starts are allowed.
 Exactly-once is not promised. Stable
-event IDs permit receiver deduplication. Owner-facing history, continuous polling, controlled replay and metrics remain planned.
+event IDs permit receiver deduplication. A [continuous worker](CONTINUOUS_WORKER.md) now processes due work sequentially
+with bounded polling and destination cooldown. Owner-facing history, controlled
+replay and metrics remain planned.
 
 ## Deployment boundaries
 

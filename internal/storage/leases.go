@@ -53,12 +53,15 @@ func (s *Store) ClaimDelivery(ctx context.Context, owner string, duration time.D
 	defer rollback(tx)
 	lease := Lease{OwnerID: owner, token: NewID(), localDeadline: started.Add(duration)}
 	err = tx.QueryRow(ctx, `WITH candidate AS (
-  SELECT event_id FROM deliveries
-  WHERE attempt_count<3 AND (status='pending'
-   OR (status='retry_wait' AND next_attempt_at<=statement_timestamp())
-   OR (status='leased' AND lease_expires_at <= statement_timestamp()))
-  ORDER BY created_at,event_id
-  LIMIT 1 FOR UPDATE SKIP LOCKED
+  SELECT q.event_id FROM deliveries q
+  JOIN events e ON e.id=q.event_id
+  JOIN destinations dst ON dst.id=e.destination_id
+  WHERE (dst.delivery_paused_until IS NULL OR dst.delivery_paused_until<=statement_timestamp())
+   AND q.attempt_count<3 AND (q.status='pending'
+   OR (q.status='retry_wait' AND q.next_attempt_at<=statement_timestamp())
+   OR (q.status='leased' AND q.lease_expires_at<=statement_timestamp()))
+  ORDER BY q.created_at,q.event_id
+  LIMIT 1 FOR UPDATE OF q SKIP LOCKED
  )
  UPDATE deliveries AS d SET status='leased',next_attempt_at=NULL,lease_token=$1,lease_owner=$2,
   lease_expires_at=clock_timestamp()+($3::bigint * interval '1 millisecond')

@@ -64,4 +64,12 @@ test-worker-process:
 
 .PHONY: deliver-once
 deliver-once:
-	docker compose run --rm --build relay-delivery-worker
+	docker compose run --rm --build relay-delivery-worker worker --send
+
+.PHONY: worker-start worker-stop worker-logs
+worker-start:
+	docker compose up -d --build relay-delivery-worker
+worker-stop:
+	docker compose stop relay-delivery-worker
+worker-logs:
+	docker compose logs --tail 100 -f relay-delivery-worker

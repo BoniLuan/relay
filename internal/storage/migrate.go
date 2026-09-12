@@ -21,7 +21,10 @@ var attemptSchema string
 //go:embed migrations/005_retry_schedule.sql
 var retrySchema string
 
-const schemaVersion = 5
+//go:embed migrations/006_destination_cooldown.sql
+var cooldownSchema string
+
+const schemaVersion = 6
 
 // Migrate is invoked explicitly by the CLI, never by API startup. The transaction
 // and advisory lock make the initial migration atomic and safe to run twice.
@@ -44,7 +47,7 @@ func (s *Store) Migrate(ctx context.Context) error {
 	if version > schemaVersion {
 		return fmt.Errorf("unsupported schema version %d", version)
 	}
-	migrations := []string{initialSchema, signingSchema, leaseSchema, attemptSchema, retrySchema}
+	migrations := []string{initialSchema, signingSchema, leaseSchema, attemptSchema, retrySchema, cooldownSchema}
 	for version < schemaVersion {
 		if _, err = tx.Exec(ctx, migrations[version]); err != nil {
 			return err

@@ -5,7 +5,8 @@
 Migration 005 adds durable attempt counts, per-event attempt numbers and retry
 schedules. The existing `make deliver-once` processes one eligible event or recovers
 one expired attempt, then exits. A due retry is eligible on a later invocation.
-There is no continuous polling process yet; merely waiting does not start HTTP.
+The [continuous worker](CONTINUOUS_WORKER.md) now processes due retries
+automatically while explicitly running. Without it, waiting does not start HTTP.
 `make up` still starts only the API and database. No new service, port, volume,
 network, credentials or Kubernetes resources are required.
 
@@ -43,7 +44,8 @@ A previously public destination can become disallowed on a later DNS resolution.
 There is no fallback to retired/revoked keys or bypass of outbound protections.
 Missing/decryption-failed keys prevent attempt start and HTTP, and the existing
 bounded preparation cleanup applies. Such failures do not consume the send budget;
-blocked-destination scheduling remains a prerequisite for a continuous worker.
+the [destination cooldown](CONTINUOUS_WORKER.md) pauses new claims for 60 seconds
+without consuming attempts.
 
 After attempt 1, equal-jitter backoff is 5–10 seconds; after attempt 2, 10–20
 seconds (upper bounds exclusive, millisecond storage precision). There is no fourth
@@ -121,5 +123,5 @@ schedule updates; `leases.go` for due-work selection; and `retries_test.go` plus
 `internal/delivery/worker_integration_test.go` for failure behavior. Policy is
 applied at persistence, so workers cannot accidentally omit the retry limit.
 
-Next milestone: a separately launched continuous worker with bounded polling,
-shutdown and blocked-destination behavior. Replay and owner history remain separate.
+The next implemented part is the [continuous worker](CONTINUOUS_WORKER.md).
+Replay and owner history remain separate milestones.

@@ -76,16 +76,18 @@ schedules; commit rollback preserves counts/history; repeated failures/crashes s
 at three; key rotation is observed on retries; stable IDs permit receiver deduplication;
 v4 history/terminal states survive migration.
 
-## 2c.3b — Continuous worker operation (planned)
+## 2c.3b — Continuous worker operation (implemented)
 
-Add bounded continuous polling, signal-aware shutdown and blocked-destination
-scheduling without allowing an unavailable key to starve the queue or spin.
-Use the implemented persisted retry/unknown policy and preserve stable IDs.
+Explicit `make worker-start`, sequential bounded polling, capped process error
+backoff, cancellable shutdown and durable destination cooldown (migration 006).
+The existing one-cycle and diagnostic commands remain available. See
+[continuous worker operation](CONTINUOUS_WORKER.md).
 
-Acceptance: concurrent workers cannot own the same active lease; private/special
-addresses and redirect/DNS bypasses are blocked; timeouts and oversized responses
-are bounded; failures retry to a limit; crashes recover expired leases; a receiver
-can verify signatures and deduplicate stable event IDs. No exactly-once claim.
+Acceptance: idle/error cycles cannot spin; backoff resets and caps; unavailable
+keys pause one destination without consuming attempts or starving another;
+stale tokens and failed commits cannot partially defer work; key repair resumes
+processing after cooldown; due retries run automatically; in-flight cancellation
+records an outcome; a real worker survives a disposable DB outage and stops on SIGTERM.
 
 ## 3 — Operation and demonstration (planned)
 

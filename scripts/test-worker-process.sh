@@ -9,10 +9,12 @@ lease_test_image=${RELAY_TEST_IMAGE:-relay:lease-check}
 lease_test_url='postgres://relay_test:relay_test_ephemeral@relay-test-db:5432/relay_test?sslmode=disable'
 lease_test_dir=$(mktemp -d /tmp/relay-lease-process.XXXXXX)
 lease_test_containers=''
+lease_test_db=''
 cleanup() {
+ if [ -n "$lease_test_db" ]; then docker unpause "$lease_test_db" >/dev/null 2>&1 || true; fi
  for lease_test_id in $lease_test_containers; do docker rm -f "$lease_test_id" >/dev/null; done
  docker compose -f compose.test.yaml down
- rm -f "$lease_test_dir/blocked.log" "$lease_test_dir/reclaimed.log"
+ rm -f "$lease_test_dir/blocked.log" "$lease_test_dir/reclaimed.log" "$lease_test_dir/keyring.json"
  rmdir "$lease_test_dir"
 }
 trap cleanup EXIT
@@ -60,3 +62,32 @@ docker stop --timeout 5 "$lease_test_graceful" >/dev/null
 [ "$(sql "SELECT status='pending' AND lease_token IS NULL AND lease_owner IS NULL AND lease_expires_at IS NULL FROM deliveries")" = t ]
 [ "$(sql 'SELECT count(*)=1 FROM deliveries')" = t ]
 echo 'Worker processes: live-claim exclusion, SIGKILL expiry recovery and SIGTERM release passed'
+
+# The real continuous CLI loads a private test keyring and defers this unkeyed
+# destination. No receiver is contacted. Pause ONLY the disposable test database.
+lease_test_db=$(docker compose -f compose.test.yaml ps -q relay-test-db)
+docker run --rm --network none --user "$(id -u):$(id -g)" -v "$lease_test_dir:/keys" "$lease_test_image" keyring-init /keys/keyring.json >/dev/null
+docker run --rm --network relay-test_default --user "$(id -u):$(id -g)" -v "$lease_test_dir:/keys:ro" \
+ -e RELAY_DATABASE_URL="$lease_test_url" -e RELAY_KEYRING_FILE=/keys/keyring.json "$lease_test_image" register-keyring >/dev/null
+lease_test_continuous=$(docker run -d --network relay-test_default --read-only --cap-drop ALL --security-opt no-new-privileges:true --memory 128m --cpus 0.5 \
+ --user "$(id -u):$(id -g)" -v "$lease_test_dir:/keys:ro" -e RELAY_DATABASE_URL="$lease_test_url" -e RELAY_KEYRING_FILE=/keys/keyring.json \
+ "$lease_test_image" worker --send --continuous)
+lease_test_containers="$lease_test_containers $lease_test_continuous"
+wait_for "SELECT delivery_paused_until>clock_timestamp() FROM destinations"
+[ "$(sql "SELECT status='pending' AND attempt_count=0 FROM deliveries")" = t ]
+docker pause "$lease_test_db" >/dev/null
+lease_test_tries=0
+while :; do
+ case "$(docker logs "$lease_test_continuous" 2>&1)" in *'worker cycle failed; backing off'*) break;; esac
+ lease_test_tries=$((lease_test_tries+1))
+ [ "$lease_test_tries" -lt 150 ] || { echo 'Continuous worker did not back off during DB outage' >&2;exit 1; }
+ sleep 0.1
+done
+docker unpause "$lease_test_db" >/dev/null
+sql "UPDATE destinations SET delivery_paused_until=clock_timestamp()-interval '1 second'" >/dev/null
+wait_for "SELECT delivery_paused_until>clock_timestamp() FROM destinations"
+docker stop --timeout 10 "$lease_test_continuous" >/dev/null
+[ "$(docker wait "$lease_test_continuous")" = 0 ]
+case "$(docker logs "$lease_test_continuous" 2>&1)" in *'continuous worker stopped'*) ;; *) echo 'Continuous worker did not stop gracefully' >&2;exit 1;; esac
+[ "$(sql 'SELECT count(*)=0 FROM delivery_attempts')" = t ]
+echo 'Continuous process: keyring loading, cooldown, DB outage recovery and SIGTERM passed'

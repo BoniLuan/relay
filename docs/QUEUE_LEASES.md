@@ -123,5 +123,5 @@ and [clock functions](https://www.postgresql.org/docs/17/functions-datetime.html
 
 The separate [signed attempt command](DELIVERY_ATTEMPTS.md) now uses these leases.
 It adds `attempting` and terminal states; the diagnostic never claims or releases
-started/terminal work. [Due retries](RETRIES.md) are now also claimable. Renewal,
-continuous polling and replay remain planned.
+started/terminal work. [Due retries](RETRIES.md) are now also claimable. The [continuous sender](CONTINUOUS_WORKER.md) now processes due work.
+Renewal and replay remain planned.

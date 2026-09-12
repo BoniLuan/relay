@@ -11,7 +11,9 @@ and revocation; see [the lifecycle guide](docs/SIGNING_SECRETS.md).
 unknown-result recovery and [bounded persisted retries](docs/RETRIES.md). Run it explicitly with `make deliver-once`; see
 [delivery attempts](docs/DELIVERY_ATTEMPTS.md). The lease-only diagnostic remains
 available through `make worker` and [queue leases](docs/QUEUE_LEASES.md).
-**Not implemented:** continuous processing, owner-facing attempt
+**Implemented, opt-in:** a [continuous worker](docs/CONTINUOUS_WORKER.md) with
+bounded polling, shutdown and destination cooldown. Start it with `make worker-start`.
+**Not implemented:** owner-facing attempt
 history, replay, client-token lifecycle management or public deployment.
 
 ## Run locally with Docker Compose
@@ -36,7 +38,7 @@ curl --fail http://127.0.0.1:18081/readyz
 
 `make migrate` builds the application and runs the migration explicitly. Repeating
 it is safe. The API verifies the registered keyring before listening and never
-applies migrations. Readiness checks PostgreSQL, schema version 5 and the loaded
+applies migrations. Readiness checks PostgreSQL, schema version 6 and the loaded
 keyring; `/livez` checks only the HTTP process.
 `make client` is a local administrative operation with database access, not a
 public registration route. Tokens have 256 random bits; only SHA-256 hashes are
@@ -72,7 +74,7 @@ internal/httpapi/             authentication, validation, HTTP contract tests
 internal/storage/             SQL, transactions and real PostgreSQL tests
 internal/delivery/            outbound security/signing primitives and TLS tests
 internal/secrets/             AES-GCM keyring and private-file loading
-internal/worker/              lease diagnostic and one signed attempt orchestration
+internal/worker/              lease diagnostic, attempt orchestration and continuous polling
 internal/storage/migrations/  embedded, explicit versioned SQL
 compose.yaml                  persistent development environment
 compose.test.yaml             disposable integration environment

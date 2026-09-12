@@ -5,8 +5,8 @@
 `internal/delivery` implements bounded HTTPS attempts and signing/verification.
 The API never calls it. The explicit [one-attempt worker](DELIVERY_ATTEMPTS.md)
 now uses this transport with durable destination secrets; the lease-only diagnostic
-still never sends HTTP. Retries use [bounded persisted scheduling](RETRIES.md); there is no continuous
-worker loop yet.
+still never sends HTTP. Retries use [bounded persisted scheduling](RETRIES.md); the opt-in [continuous worker](CONTINUOUS_WORKER.md)
+processes due work automatically.
 
 Run `make test-integration`: delivery tests use local TLS fixtures only, including
 the full ingestion/worker/persistence path. No production policy bypass is exposed.

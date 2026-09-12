@@ -7,11 +7,13 @@ import (
 	"time"
 
 	"github.com/BoniLuan/relay/internal/delivery"
+	"github.com/BoniLuan/relay/internal/secrets"
 	"github.com/BoniLuan/relay/internal/storage"
 )
 
 type AttemptQueue interface {
 	Queue
+	DeferDestination(context.Context, storage.Lease) error
 	StartAttempt(context.Context, storage.Lease) (storage.AttemptWork, error)
 	FinishAttempt(context.Context, storage.Lease, string, storage.AttemptResult) error
 	RecoverAttempt(context.Context) (bool, error)
@@ -23,8 +25,8 @@ type Sender interface {
 // RunOnce recovers one interrupted attempt OR sends at most one event. There is
 // no polling/retry loop. The production CLI supplies the policy-enforcing sender.
 func RunOnce(ctx context.Context, q AttemptQueue, sender Sender, logger *slog.Logger, duration time.Duration) error {
-	if duration < 15*time.Second || duration > storage.MaxLeaseDuration || duration%time.Millisecond != 0 {
-		return errors.New("sending requires a whole-millisecond lease from 15s to 5m")
+	if err := validateSendDuration(duration); err != nil {
+		return err
 	}
 	if ctx.Err() != nil {
 		return nil
@@ -43,7 +45,7 @@ func RunOnce(ctx context.Context, q AttemptQueue, sender Sender, logger *slog.Lo
 	lease, err := q.ClaimDelivery(opCtx, storage.NewID(), duration)
 	cancel()
 	if errors.Is(err, storage.ErrNoDelivery) {
-		logger.Info("no delivery available")
+		logger.Debug("no delivery available")
 		return nil
 	}
 	if err != nil {
@@ -53,6 +55,16 @@ func RunOnce(ctx context.Context, q AttemptQueue, sender Sender, logger *slog.Lo
 	work, err := q.StartAttempt(opCtx, lease)
 	cancel()
 	if err != nil {
+		if errors.Is(err, storage.ErrSigningUnavailable) || errors.Is(err, secrets.ErrKeyring) {
+			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 3*time.Second)
+			deferErr := q.DeferDestination(cleanupCtx, lease)
+			cleanupCancel()
+			if deferErr != nil {
+				return errors.New("destination deferral failed; no HTTP performed")
+			}
+			logger.Warn("destination paused for 60 seconds; signing key unavailable", "event_id", lease.EventID)
+			return nil
+		}
 		// A lost commit response might conceal a started attempt. Release only accepts
 		// 'leased', so it cannot requeue that uncertain outbound work.
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -60,9 +72,6 @@ func RunOnce(ctx context.Context, q AttemptQueue, sender Sender, logger *slog.Lo
 		cleanupCancel()
 		if releaseErr != nil && !errors.Is(releaseErr, storage.ErrLeaseLost) {
 			logger.Error("preparation cleanup failed; reservation expires")
-		}
-		if errors.Is(err, storage.ErrSigningUnavailable) {
-			return errors.New("no active signing secret; no HTTP performed")
 		}
 		return errors.New("attempt preparation failed; no HTTP performed; inspect attempt state")
 	}

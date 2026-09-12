@@ -382,3 +382,220 @@ func TestRetrySelectsNewActiveKeyAndPreservesPayload(t *testing.T) {
 		t.Fatal("retry not completed")
 	}
 }
+
+func TestContinuousWorkerSkipsUnavailableDestinationAndResumes(t *testing.T) {
+	for _, failure := range []string{"missing", "corrupt"} {
+		t.Run(failure, func(t *testing.T) {
+			db, pool := integrationStore(t)
+			ctx := context.Background()
+			client, _, err := db.ProvisionClient(ctx, "continuous")
+			if err != nil {
+				t.Fatal(err)
+			}
+			blocked, err := db.CreateDestination(ctx, client, "https://example.com/blocked")
+			if err != nil {
+				t.Fatal(err)
+			}
+			blockedEvent, _, err := db.Ingest(ctx, client, blocked.ID, "blocked", [32]byte{}, []byte(`null`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if failure == "corrupt" {
+				meta, _, err := db.StageSigningSecret(ctx, client, blocked.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err = db.ActivateSigningSecret(ctx, client, blocked.ID, meta.Version); err != nil {
+					t.Fatal(err)
+				}
+				if _, err = pool.Exec(ctx, "UPDATE signing_secrets SET ciphertext=decode(repeat('00',32),'hex') WHERE destination_id=$1", blocked.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			good, err := db.CreateDestination(ctx, client, "https://example.com/healthy")
+			if err != nil {
+				t.Fatal(err)
+			}
+			meta, key, err := db.StageSigningSecret(ctx, client, good.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = db.ActivateSigningSecret(ctx, client, good.ID, meta.Version); err != nil {
+				t.Fatal(err)
+			}
+			healthy, _, err := db.Ingest(ctx, client, good.ID, "healthy", [32]byte{}, []byte(`null`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var calls atomic.Int32
+			sender, _ := delivery.NewFixtureSender(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				body, _ := io.ReadAll(r.Body)
+				if r.Header.Get("Relay-Event-ID") != healthy.ID || !delivery.Verify(key, r.Header.Get("Relay-Signature"), healthy.ID, body, time.Now()) {
+					t.Error("wrong event/signature")
+				}
+				w.WriteHeader(204)
+			}))
+			runUntilEvent(t, db, sender, client, healthy.ID, "succeeded")
+			if calls.Load() != 1 {
+				t.Fatal("blocked event reached receiver or healthy event repeated")
+			}
+			var safe bool
+			if err = pool.QueryRow(ctx, `SELECT d.status='pending' AND d.attempt_count=0 AND dst.delivery_paused_until>clock_timestamp()
+ FROM deliveries d JOIN events e ON e.id=d.event_id JOIN destinations dst ON dst.id=e.destination_id WHERE d.event_id=$1`, blockedEvent.ID).Scan(&safe); err != nil || !safe {
+				t.Fatal("unavailable destination not safely deferred")
+			}
+			// Repair/provision, then make the test-only cooldown expire; no HTTP override.
+			if failure == "corrupt" {
+				if err = db.RevokeSigningSecret(ctx, client, blocked.ID, 1); err != nil {
+					t.Fatal(err)
+				}
+			}
+			replacement, newKey, err := db.StageSigningSecret(ctx, client, blocked.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = db.ActivateSigningSecret(ctx, client, blocked.ID, replacement.Version); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = pool.Exec(ctx, "UPDATE destinations SET delivery_paused_until=clock_timestamp()-interval '1 second' WHERE id=$1", blocked.ID); err != nil {
+				t.Fatal(err)
+			}
+			resumed, _ := delivery.NewFixtureSender(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, _ := io.ReadAll(r.Body)
+				if r.Header.Get("Relay-Event-ID") != blockedEvent.ID || !delivery.Verify(newKey, r.Header.Get("Relay-Signature"), blockedEvent.ID, body, time.Now()) {
+					t.Error("resumed event signature invalid")
+				}
+				w.WriteHeader(204)
+			}))
+			runUntilEvent(t, db, resumed, client, blockedEvent.ID, "succeeded")
+		})
+	}
+}
+
+func runUntilEvent(t *testing.T, db *storage.Store, sender *delivery.Sender, client, event, state string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	finished := make(chan error, 1)
+	go func() {
+		finished <- worker.RunContinuous(ctx, db, sender, slog.New(slog.NewTextHandler(io.Discard, nil)), 30*time.Second, time.Second)
+	}()
+	defer func() {
+		cancel()
+		if err := <-finished; err != nil {
+			t.Error(err)
+		}
+	}()
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			t.Fatal("continuous worker did not complete expected event")
+		case <-ticker.C:
+			found, err := db.GetEvent(ctx, client, event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if found.Status == state {
+				return
+			}
+		}
+	}
+}
+
+func TestContinuousShutdownCancelsInFlightHTTPAndPersistsOutcome(t *testing.T) {
+	db, pool := integrationStore(t)
+	ctx := context.Background()
+	client, _, err := db.ProvisionClient(ctx, "shutdown")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := db.CreateDestination(ctx, client, "https://example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta, _, err := db.StageSigningSecret(ctx, client, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = db.ActivateSigningSecret(ctx, client, d.ID, meta.Version); err != nil {
+		t.Fatal(err)
+	}
+	e, _, err := db.Ingest(ctx, client, d.ID, "shutdown", [32]byte{}, []byte(`null`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	received := make(chan struct{}, 1)
+	sender, _ := delivery.NewFixtureSender(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.Copy(io.Discard, r.Body)
+		received <- struct{}{}
+		<-r.Context().Done()
+	}))
+	runCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	finished := make(chan error, 1)
+	go func() {
+		finished <- worker.RunContinuous(runCtx, db, sender, slog.New(slog.NewTextHandler(io.Discard, nil)), 30*time.Second, time.Second)
+	}()
+	select {
+	case <-received:
+	case <-runCtx.Done():
+		cancel()
+		<-finished
+		t.Fatal("request did not start")
+	}
+	cancel()
+	select {
+	case err = <-finished:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("worker did not bound shutdown")
+	}
+	var persisted bool
+	if err = pool.QueryRow(ctx, `SELECT d.status='retry_wait' AND d.attempt_count=1 AND a.state='failed' AND a.error_code IS NOT NULL
+ FROM deliveries d JOIN delivery_attempts a ON a.event_id=d.event_id WHERE d.event_id=$1`, e.ID).Scan(&persisted); err != nil || !persisted {
+		t.Fatal("canceled HTTP result was not finalized")
+	}
+}
+
+func TestContinuousWorkerProcessesRetryWithoutManualInvocation(t *testing.T) {
+	db, _ := integrationStore(t)
+	ctx := context.Background()
+	client, _, err := db.ProvisionClient(ctx, "continuous retry")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := db.CreateDestination(ctx, client, "https://example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta, _, err := db.StageSigningSecret(ctx, client, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = db.ActivateSigningSecret(ctx, client, d.ID, meta.Version); err != nil {
+		t.Fatal(err)
+	}
+	e, _, err := db.Ingest(ctx, client, d.ID, "continuous retry", [32]byte{}, []byte(`null`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var calls atomic.Int32
+	sender, _ := delivery.NewFixtureSender(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Relay-Event-ID") != e.ID {
+			t.Error("retry changed event ID")
+		}
+		if calls.Add(1) == 1 {
+			w.WriteHeader(503)
+		} else {
+			w.WriteHeader(204)
+		}
+	}))
+	runUntilEvent(t, db, sender, client, e.ID, "succeeded")
+	if calls.Load() != 2 {
+		t.Fatal("unexpected number of automatic sends")
+	}
+}

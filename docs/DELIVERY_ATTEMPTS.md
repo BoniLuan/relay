@@ -3,7 +3,7 @@
 ## Scope
 
 `make deliver-once` explicitly runs one signed attempt, or recovers one expired
-started attempt and exits. There is no polling, lease renewal,
+started attempt and exits. This command has no polling or lease renewal,
 replay endpoint or public deployment. `make up` starts only API/database.
 Retries now follow [the bounded schedule policy](RETRIES.md) on later invocations.
 `make worker` remains the lease-only diagnostic described in [queue leases](QUEUE_LEASES.md).
@@ -71,10 +71,9 @@ not a reserialized JSON value.
 `StartAttempt` shares the destination lock with staging, activation and revocation.
 It selects the active version under that lock and records its number with the
 attempt. A missing active key or failed decryption prevents HTTP and attempts
-bounded release of the unstarted lease. The command exits with an operational
-error; provision/fix the key before trying again. Such an oldest pending event
-can block progress in this one-item implementation; scheduling blocked work is
-outside this milestone.
+a bounded transaction to release the unstarted lease and pause destination claims. The cycle completes with a warning
+log; provision/fix the key and wait for the persisted 60-second
+[destination cooldown](CONTINUOUS_WORKER.md). Other destinations remain eligible.
 
 Rotation/revocation committed before preparation is respected. Rotation or
 revocation after preparation commits cannot retract a secret already in a running
@@ -159,5 +158,5 @@ production still uses one storage implementation and one policy-enforcing sender
 See `internal/delivery/worker_integration_test.go` for the full path and
 `internal/storage/attempts_test.go` for failures at database commit boundaries.
 
-The next implemented part is [durable retry scheduling](RETRIES.md). Continuous
-polling and replay remain separate milestones.
+See [durable retries](RETRIES.md) and the [continuous worker](CONTINUOUS_WORKER.md)
+for processing beyond one cycle. Replay remains planned.

@@ -5,8 +5,8 @@ signing keys. Migration 002 adds encrypted versioned secrets and master-key
 verification records; migration 001 stays unchanged. Existing destinations receive
 no automatic key. An opt-in [lease diagnostic](QUEUE_LEASES.md) exists but never reads signing keys
 or sends events. A separate [single-attempt command](DELIVERY_ATTEMPTS.md) now
-uses the keys. Retries are now [persistently scheduled](RETRIES.md); continuous processing remains
-unimplemented.
+uses the keys. Retries are now [persistently scheduled](RETRIES.md); the [continuous worker](CONTINUOUS_WORKER.md)
+is explicitly started with `make worker-start`.
 
 ## Development setup
 
@@ -17,7 +17,7 @@ cp .env.example .env
 chmod 600 .env
 make keyring             # Creates .local/keyring.json, mode 0600; never overwrites
 make db
-make migrate             # Explicit migration to current schema (version 5)
+make migrate             # Explicit migration to current schema (version 6)
 make register-keyring    # Explicit registration/verification of master keys
 make client NAME=local
 make up
@@ -104,8 +104,8 @@ Database dumps contain sensitive event data even though signing keys are encrypt
 Protect database backups and keep the keyring in an independently protected secret
 backup, never in the dump or Git. A lost master key cannot be regenerated.
 
-For a coordinated manual development backup, first let all one-off workers and
-administrative commands finish; do not start new ones during the backup. Use a new
+For a coordinated manual development backup, first stop the continuous worker with `make worker-stop` and let all one-off
+workers and administrative commands finish; do not start new ones during the backup. Use a new
 private backup directory:
 
 ```bash

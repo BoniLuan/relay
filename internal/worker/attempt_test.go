@@ -15,9 +15,10 @@ import (
 
 type attemptQueueFake struct {
 	fakeQueue
-	start   func(context.Context, storage.Lease) (storage.AttemptWork, error)
-	finish  func(context.Context, storage.Lease, string, storage.AttemptResult) error
-	recover func(context.Context) (bool, error)
+	start            func(context.Context, storage.Lease) (storage.AttemptWork, error)
+	finish           func(context.Context, storage.Lease, string, storage.AttemptResult) error
+	recover          func(context.Context) (bool, error)
+	deferDestination func(context.Context, storage.Lease) error
 }
 
 func (q attemptQueueFake) StartAttempt(ctx context.Context, l storage.Lease) (storage.AttemptWork, error) {
@@ -27,6 +28,10 @@ func (q attemptQueueFake) FinishAttempt(ctx context.Context, l storage.Lease, id
 	return q.finish(ctx, l, id, r)
 }
 func (q attemptQueueFake) RecoverAttempt(ctx context.Context) (bool, error) { return q.recover(ctx) }
+
+func (q attemptQueueFake) DeferDestination(ctx context.Context, l storage.Lease) error {
+	return q.deferDestination(ctx, l)
+}
 
 type forbiddenSender struct{ t *testing.T }
 
