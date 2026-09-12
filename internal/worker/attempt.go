@@ -36,7 +36,7 @@ func RunOnce(ctx context.Context, q AttemptQueue, sender Sender, logger *slog.Lo
 		return errors.New("attempt recovery failed")
 	}
 	if recovered {
-		logger.Info("expired attempt marked unknown; no resend performed")
+		logger.Info("expired attempt recorded as unknown; bounded retry policy applied")
 		return nil
 	}
 	opCtx, cancel = context.WithTimeout(ctx, 5*time.Second)
@@ -66,7 +66,7 @@ func RunOnce(ctx context.Context, q AttemptQueue, sender Sender, logger *slog.Lo
 		}
 		return errors.New("attempt preparation failed; no HTTP performed; inspect attempt state")
 	}
-	logger.Info("delivery attempt started", "event_id", work.EventID, "attempt_id", work.ID, "signing_version", work.SigningVersion)
+	logger.Info("delivery attempt started", "event_id", work.EventID, "attempt_id", work.ID, "signing_version", work.SigningVersion, "attempt_number", work.Number)
 	outcome := delivery.Outcome{}
 	var sendErr error
 	// Conservatively require the complete send/finalize budget AFTER start commit.
@@ -82,7 +82,7 @@ func RunOnce(ctx context.Context, q AttemptQueue, sender Sender, logger *slog.Lo
 	err = q.FinishAttempt(finishCtx, lease, work.ID, result)
 	finishCancel()
 	if err != nil {
-		return errors.New("attempt result not confirmed; do not assume delivery or resend; recovery uses unknown")
+		return errors.New("attempt result not confirmed; do not assume delivery or resend; recovery may schedule a retry with the same event ID")
 	}
 	logger.Info("delivery attempt recorded", "event_id", work.EventID, "attempt_id", work.ID, "http_status", result.StatusCode, "error_code", result.ErrorCode)
 	return nil

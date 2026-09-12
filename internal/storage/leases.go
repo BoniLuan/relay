@@ -54,11 +54,13 @@ func (s *Store) ClaimDelivery(ctx context.Context, owner string, duration time.D
 	lease := Lease{OwnerID: owner, token: NewID(), localDeadline: started.Add(duration)}
 	err = tx.QueryRow(ctx, `WITH candidate AS (
   SELECT event_id FROM deliveries
-  WHERE status='pending' OR (status='leased' AND lease_expires_at <= statement_timestamp())
+  WHERE attempt_count<3 AND (status='pending'
+   OR (status='retry_wait' AND next_attempt_at<=statement_timestamp())
+   OR (status='leased' AND lease_expires_at <= statement_timestamp()))
   ORDER BY created_at,event_id
   LIMIT 1 FOR UPDATE SKIP LOCKED
  )
- UPDATE deliveries AS d SET status='leased',lease_token=$1,lease_owner=$2,
+ UPDATE deliveries AS d SET status='leased',next_attempt_at=NULL,lease_token=$1,lease_owner=$2,
   lease_expires_at=clock_timestamp()+($3::bigint * interval '1 millisecond')
  FROM candidate AS c WHERE d.event_id=c.event_id
  RETURNING d.event_id::text,d.lease_expires_at`, lease.token, owner, duration.Milliseconds()).Scan(&lease.EventID, &lease.ExpiresAt)

@@ -189,14 +189,18 @@ func TestIngestionToSignedAttempt(t *testing.T) {
 			if err != nil || state != wantState || code != tc.code || status != wantStatus || count != 1 {
 				t.Fatalf("state=%s code=%s status=%d count=%d err=%v", state, code, status, count, err)
 			}
-			// Duplicate ingestion returns the terminal event; it never requeues it.
+			// Duplicate ingestion preserves the result or scheduled retry without new work.
 			duplicate := ingest()
 			if duplicate.Code != 200 {
 				t.Fatal("duplicate failed")
 			}
 			var again storage.Event
 			json.Unmarshal(duplicate.Body.Bytes(), &again)
-			if again.ID != event.ID || again.Status != wantState {
+			deliveryState := wantState
+			if tc.code == "network" || tc.code == "response" || tc.status == 503 {
+				deliveryState = "retry_wait"
+			}
+			if again.ID != event.ID || again.Status != deliveryState {
 				t.Fatal("duplicate changed identity/status")
 			}
 		})
@@ -208,7 +212,7 @@ type unconfirmedQueue struct{ *storage.Store }
 func (unconfirmedQueue) FinishAttempt(context.Context, storage.Lease, string, storage.AttemptResult) error {
 	return errors.New("synthetic private database detail")
 }
-func TestHTTPAcceptedButResultLostBecomesUnknown(t *testing.T) {
+func TestLostResultRetryUsesStableIDAndReceiverDeduplication(t *testing.T) {
 	db, pool := integrationStore(t)
 	ctx := context.Background()
 	client, _, err := db.ProvisionClient(ctx, "uncertain")
@@ -231,7 +235,19 @@ func TestHTTPAcceptedButResultLostBecomesUnknown(t *testing.T) {
 		t.Fatal(err)
 	}
 	var received atomic.Int32
-	sender, _ := delivery.NewFixtureSender(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { received.Add(1); w.WriteHeader(204) }))
+	var businessOperations atomic.Int32
+	var seen sync.Map
+	sender, _ := delivery.NewFixtureSender(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received.Add(1)
+		id := r.Header.Get("Relay-Event-ID")
+		if id != event.ID {
+			t.Error("retry changed event identity")
+		}
+		if _, loaded := seen.LoadOrStore(id, true); !loaded {
+			businessOperations.Add(1)
+		}
+		w.WriteHeader(204)
+	}))
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&logs, nil))
 	err = worker.RunOnce(ctx, unconfirmedQueue{db}, sender, logger, 30*time.Second)
@@ -248,10 +264,121 @@ func TestHTTPAcceptedButResultLostBecomesUnknown(t *testing.T) {
 		t.Fatal(err)
 	}
 	found, err := db.GetEvent(ctx, client, event.ID)
-	if err != nil || found.Status != "unknown" || received.Load() != 1 {
+	if err != nil || found.Status != "retry_wait" || received.Load() != 1 {
 		t.Fatal("uncertain delivery was lost or resent")
+	}
+	if _, err = pool.Exec(ctx, "UPDATE deliveries SET next_attempt_at=clock_timestamp()-interval '1 second' WHERE event_id=$1", event.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err = worker.RunOnce(ctx, db, sender, logger, 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	found, err = db.GetEvent(ctx, client, event.ID)
+	if err != nil || found.Status != "succeeded" || received.Load() != 2 || businessOperations.Load() != 1 {
+		t.Fatal("retry or receiver deduplication failed")
+	}
+	var history []string
+	rows, err := pool.Query(ctx, "SELECT state FROM delivery_attempts WHERE event_id=$1 ORDER BY attempt_number", event.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var state string
+		if err = rows.Scan(&state); err != nil {
+			t.Fatal(err)
+		}
+		history = append(history, state)
+	}
+	if err = rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	rows.Close()
+	if strings.Join(history, ",") != "unknown,succeeded" {
+		t.Fatal("unknown history overwritten")
 	}
 	if strings.Contains(logs.String(), "synthetic") {
 		t.Fatal("raw error leaked")
+	}
+}
+
+func TestRetrySelectsNewActiveKeyAndPreservesPayload(t *testing.T) {
+	db, pool := integrationStore(t)
+	ctx := context.Background()
+	client, _, err := db.ProvisionClient(ctx, "retry rotation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := db.CreateDestination(ctx, client, "https://example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, key1, err := db.StageSigningSecret(ctx, client, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = db.ActivateSigningSecret(ctx, client, d.ID, first.Version); err != nil {
+		t.Fatal(err)
+	}
+	second, key2, err := db.StageSigningSecret(ctx, client, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const payload = `{ "precise":9007199254740993 }`
+	e, _, err := db.Ingest(ctx, client, d.ID, "rotate-retry", [32]byte{}, []byte(payload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var calls atomic.Int32
+	sender, _ := delivery.NewFixtureSender(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := calls.Add(1)
+		key := key1
+		if n == 2 {
+			key = key2
+		}
+		body, _ := io.ReadAll(r.Body)
+		if n > 2 || string(body) != payload || r.Header.Get("Relay-Event-ID") != e.ID || !delivery.Verify(key, r.Header.Get("Relay-Signature"), e.ID, body, time.Now()) {
+			t.Error("retry identity/signature/payload mismatch")
+		}
+		if n == 1 {
+			w.WriteHeader(503)
+		} else {
+			w.WriteHeader(204)
+		}
+	}))
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if err = worker.RunOnce(ctx, db, sender, logger, 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if err = db.ActivateSigningSecret(ctx, client, d.ID, second.Version); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, "UPDATE deliveries SET next_attempt_at=clock_timestamp()-interval '1 second' WHERE event_id=$1", e.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err = worker.RunOnce(ctx, db, sender, logger, 30*time.Second); err != nil {
+		t.Fatal(err)
+	}
+	var versions []int
+	rows, err := pool.Query(ctx, "SELECT signing_version FROM delivery_attempts WHERE event_id=$1 ORDER BY attempt_number", e.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var version int
+		if err = rows.Scan(&version); err != nil {
+			t.Fatal(err)
+		}
+		versions = append(versions, version)
+	}
+	if err = rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	rows.Close()
+	if calls.Load() != 2 || len(versions) != 2 || versions[0] != 1 || versions[1] != 2 {
+		t.Fatal("retry did not retain per-attempt key history")
+	}
+	found, err := db.GetEvent(ctx, client, e.ID)
+	if err != nil || found.Status != "succeeded" {
+		t.Fatal("retry not completed")
 	}
 }

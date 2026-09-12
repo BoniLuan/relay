@@ -3,8 +3,9 @@
 ## Scope
 
 `make deliver-once` explicitly runs one signed attempt, or recovers one expired
-started attempt and exits. There is no polling, automatic retry, lease renewal,
-replay endpoint or public deployment. `make up` starts only API/database;
+started attempt and exits. There is no polling, lease renewal,
+replay endpoint or public deployment. `make up` starts only API/database.
+Retries now follow [the bounded schedule policy](RETRIES.md) on later invocations.
 `make worker` remains the lease-only diagnostic described in [queue leases](QUEUE_LEASES.md).
 
 The production sender always enforces [the outbound policy](DELIVERY_SECURITY.md):
@@ -30,27 +31,28 @@ use a local TLS fixture with overrides compiled only into test binaries.
 | `leased` | Reserved, no committed attempt yet; expiry allows reclamation |
 | `attempting` | Attempt start committed; HTTP may have happened |
 | `succeeded` | 2xx response fully consumed within limits and result committed |
-| `failed` | A bounded failure result committed; no automatic retry |
-| `unknown` | Started attempt expired without a committed result; no automatic resend |
+| `retry_wait` | A retryable failure or interruption committed with a future deadline |
+| `failed` | Non-retryable failure or exhausted budget; terminal |
+| `unknown` | Interrupted work exhausted its budget, or an existing terminal unknown |
 
 At the beginning of each sending invocation, `RecoverAttempt` closes at most one
-expired `attempting` delivery as `unknown` with error code `interrupted` and exits.
-A following invocation may process another pending event. Recovery uses row locks
+expired `attempting` attempt as `unknown` with error code `interrupted`, applies
+the bounded retry policy and exits.
+A following invocation may process pending work or a due retry. Recovery uses row locks
 and `SKIP LOCKED`; it cannot change a live attempt. Diagnostic claims never select
 `attempting`, `failed`, `unknown` or `succeeded` deliveries.
 
-A crash after start commit but before HTTP also becomes `unknown`. This is
+A crash after start commit but before HTTP also produces `unknown` history. This is
 conservative: the database cannot distinguish it from a crash after the receiver
 committed its business operation. A failed result commit leaves started work for
 recovery; a lost response from a successful result commit may already be terminal.
 The worker reports an unconfirmed result in either case. It never resends in the
-same invocation or releases started work back to `pending`.
+same invocation or releases started work back to `pending`. Recovery may schedule
+a later retry within the persisted budget.
 
 `failed` does **not** guarantee the receiver did nothing: response read errors,
-timeouts and cancellations may occur after a side effect. At-least-once processing
-is the product direction; this manual single-attempt milestone does not yet provide
-automatic retry guarantees. Exactly-once delivery is not promised. Future retries
-and replay must preserve event IDs; receivers must durably deduplicate them.
+timeouts and cancellations may occur after a side effect. Bounded at-least-once processing requires later worker invocations to process
+persisted retries; it does not guarantee eventual success. Exactly-once delivery is not promised. Retries preserve event IDs; future replay must too; receivers must durably deduplicate them.
 A lease token fences database updates, not remote HTTP side effects.
 
 ## Payload and signing versions
@@ -90,7 +92,7 @@ conservative monotonic budget for five seconds of HTTP plus three seconds of
 finalization. Insufficient budget skips HTTP and attempts to record `canceled`.
 
 SIGINT/SIGTERM cancels HTTP. Finalization gets a fresh bounded three-second context;
-if it fails or ownership expires, later recovery records `unknown`. No transaction
+if it fails or ownership expires, later recovery records `unknown` history and applies the retry budget. No transaction
 stays open during network I/O. The sending Compose service has a ten-second stop
 grace period. SIGKILL cannot run cleanup.
 
@@ -98,7 +100,8 @@ History stores attempt/event/destination IDs, signing version, timestamps, state
 optional HTTP status and a fixed error code. Codes: `http_status` (non-2xx),
 `destination` (policy rejection), `network` (including DNS/TLS/deadline failures),
 `response` (read/size limit or non-standard status outside 100–599), `input`, `canceled`, and recovery-only `interrupted`.
-A 2xx with a response error is `failed`. The receiver body, URL, signature, plaintext
+A 2xx with a response error produces a `failed` attempt; the delivery may enter
+`retry_wait`. The receiver body, URL, signature, plaintext
 key and raw database/network error are never stored in attempt history or logs.
 The internal lease token is stored for fencing, but omitted from logs/inspection.
 An exit code of zero means the bounded work was recorded (or no work existed),
@@ -143,10 +146,10 @@ docker compose exec -T relay-db psql -U relay_dev -d relay_dev -c \
 `make test-integration` covers authenticated ingestion through a real worker and
 local signed TLS request into persisted results. It checks competing workers,
 2xx, receiver errors, redirects, timeout, response overflow, policy rejection, idempotent
-resubmission after completion and HTTP success followed by lost finalization.
+resubmission after completion and HTTP success followed by lost finalization and a deduplicated retry.
 Storage tests inject start/finalization commit failures, test stale/expired tokens,
 concurrent unknown recovery, exact/legacy payloads, key rotation/revocation and
-upgrades from schema versions 1, 2 and 3. Existing sender tests cover DNS rebinding,
+upgrades from schema versions 1 through 4. Existing sender tests cover DNS rebinding,
 TLS rejection, timeout, proxy isolation and response limits.
 
 Study `internal/worker/attempt.go` for orchestration and context lifetimes, then
@@ -156,5 +159,5 @@ production still uses one storage implementation and one policy-enforcing sender
 See `internal/delivery/worker_integration_test.go` for the full path and
 `internal/storage/attempts_test.go` for failures at database commit boundaries.
 
-Next milestone: bounded retry scheduling and recovery policy, designed together
-with receiver deduplication. Stop here before introducing those state transitions.
+The next implemented part is [durable retry scheduling](RETRIES.md). Continuous
+polling and replay remain separate milestones.

@@ -56,19 +56,31 @@ graceful cancellation attempts bounded cleanup. Existing v1/v2 data is preserved
 
 Migration 004, exact payload bytes for new events, explicit `make deliver-once`,
 active signing-version pinning, one bounded HTTPS request and atomic safe outcomes.
-Expired started attempts become unknown without automatic resend. See
-[delivery attempts](DELIVERY_ATTEMPTS.md).
+This milestone originally left expired started work terminal; 2c.3a below adds
+bounded retries while preserving unknown history. See [delivery attempts](DELIVERY_ATTEMPTS.md).
 
 Acceptance: local TLS end-to-end tests verify signed persisted payloads; concurrent
 workers send once; failures/redirects/limits persist safe outcomes; start commit
 failure returns no work; finalization failure cannot invent success; stale tokens
 cannot finish; unknown recovery does not resend; migration preserves v1/v2/v3 data.
 
-## 2c.3 — Retries and worker recovery (planned)
+## 2c.3a — Durable retry scheduling (implemented)
 
-Add bounded jittered retry scheduling, continuous polling and an explicit policy
-for unknown outcomes. Re-read the active key on each new attempt. Preserve stable
-event IDs for receiver deduplication and retain every attempt's version/outcome.
+Migration 005, three-attempt budget, due-time claims, equal-jitter backoff and
+atomic result/schedule persistence. Expired started work keeps unknown history
+and may retry within the same budget. Existing terminal work is not reactivated.
+See [retry semantics](RETRIES.md). Each invocation still processes one item.
+
+Acceptance: no early claims; concurrent due claims have one winner; restart keeps
+schedules; commit rollback preserves counts/history; repeated failures/crashes stop
+at three; key rotation is observed on retries; stable IDs permit receiver deduplication;
+v4 history/terminal states survive migration.
+
+## 2c.3b — Continuous worker operation (planned)
+
+Add bounded continuous polling, signal-aware shutdown and blocked-destination
+scheduling without allowing an unavailable key to starve the queue or spin.
+Use the implemented persisted retry/unknown policy and preserve stable IDs.
 
 Acceptance: concurrent workers cannot own the same active lease; private/special
 addresses and redirect/DNS bypasses are blocked; timeouts and oversized responses

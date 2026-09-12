@@ -8,10 +8,10 @@ idempotency, authenticated event lookup, health endpoints and graceful shutdown.
 Destination signing secrets support encrypted storage, staged activation, rotation
 and revocation; see [the lifecycle guide](docs/SIGNING_SECRETS.md).
 **Implemented, opt-in:** one signed HTTPS attempt with durable outcome and safe
-unknown-result recovery. Run it explicitly with `make deliver-once`; see
+unknown-result recovery and [bounded persisted retries](docs/RETRIES.md). Run it explicitly with `make deliver-once`; see
 [delivery attempts](docs/DELIVERY_ATTEMPTS.md). The lease-only diagnostic remains
 available through `make worker` and [queue leases](docs/QUEUE_LEASES.md).
-**Not implemented:** continuous processing, automatic retries, owner-facing attempt
+**Not implemented:** continuous processing, owner-facing attempt
 history, replay, client-token lifecycle management or public deployment.
 
 ## Run locally with Docker Compose
@@ -36,7 +36,7 @@ curl --fail http://127.0.0.1:18081/readyz
 
 `make migrate` builds the application and runs the migration explicitly. Repeating
 it is safe. The API verifies the registered keyring before listening and never
-applies migrations. Readiness checks PostgreSQL, schema version 4 and the loaded
+applies migrations. Readiness checks PostgreSQL, schema version 5 and the loaded
 keyring; `/livez` checks only the HTTP process.
 `make client` is a local administrative operation with database access, not a
 public registration route. Tokens have 256 random bits; only SHA-256 hashes are

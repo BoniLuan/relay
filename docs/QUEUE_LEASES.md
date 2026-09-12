@@ -96,7 +96,8 @@ docker compose exec -T relay-db psql -U relay_dev -d relay_dev -c \
 
 Authenticated event lookup and duplicate event submission can now report `leased`.
 They expose neither owner/token nor secret/payload contents. A lease is reservation
-metadata, not a delivery outcome. There is no event deletion or retry counter here.
+metadata, not a delivery outcome. The diagnostic does not increment the retry
+counter introduced by [retry scheduling](RETRIES.md). There is no event deletion.
 
 ## Verification and study
 
@@ -122,4 +123,5 @@ and [clock functions](https://www.postgresql.org/docs/17/functions-datetime.html
 
 The separate [signed attempt command](DELIVERY_ATTEMPTS.md) now uses these leases.
 It adds `attempting` and terminal states; the diagnostic never claims or releases
-started/terminal work. Retries, renewal, polling and replay remain planned.
+started/terminal work. [Due retries](RETRIES.md) are now also claimable. Renewal,
+continuous polling and replay remain planned.

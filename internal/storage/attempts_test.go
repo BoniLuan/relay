@@ -194,7 +194,7 @@ func TestAttemptStartAndFinishCommitFailures(t *testing.T) {
 		})
 	}
 }
-func TestInterruptedAttemptIsUnknownAndNeverRequeued(t *testing.T) {
+func TestInterruptedAttemptSchedulesOnceAndRejectsStaleCompletion(t *testing.T) {
 	s, _, _, e, _ := attemptFixture(t)
 	ctx := context.Background()
 	lease := claimAttempt(t, s)
@@ -238,14 +238,14 @@ func TestInterruptedAttemptIsUnknownAndNeverRequeued(t *testing.T) {
 	if n != 1 {
 		t.Fatalf("recoveries=%d", n)
 	}
-	assertAttemptState(t, s, e.ID, "unknown", 1)
+	assertAttemptState(t, s, e.ID, "retry_wait", 1)
 	var state, code string
 	err = s.pool.QueryRow(ctx, "SELECT state,error_code FROM delivery_attempts").Scan(&state, &code)
 	if err != nil || state != "unknown" || code != "interrupted" {
 		t.Fatal("missing unknown history")
 	}
 	if _, err = s.ClaimDelivery(ctx, NewID(), time.Minute); !errors.Is(err, ErrNoDelivery) {
-		t.Fatal("unknown attempt requeued")
+		t.Fatal("retry claimed before its scheduled time")
 	}
 	if err = s.FinishAttempt(ctx, lease, work.ID, AttemptResult{StatusCode: 204}); !errors.Is(err, ErrLeaseLost) {
 		t.Fatal("stale worker overwrote recovery")
@@ -272,7 +272,7 @@ func TestAttemptWrongIDRollsBackDeliveryAndLegacyPayload(t *testing.T) {
 	if err = s.FinishAttempt(ctx, lease, work.ID, AttemptResult{StatusCode: 503, ErrorCode: "http_status"}); err != nil {
 		t.Fatal(err)
 	}
-	assertAttemptState(t, s, e.ID, "failed", 1)
+	assertAttemptState(t, s, e.ID, "retry_wait", 1)
 }
 
 func TestAttemptRejectsIncompleteUnknownState(t *testing.T) {

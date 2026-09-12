@@ -356,7 +356,7 @@ func TestMasterKeyRollover(t *testing.T) {
 }
 
 func TestMigrationUpgradePreservesExistingData(t *testing.T) {
-	for _, version := range []int{1, 2, 3} {
+	for _, version := range []int{1, 2, 3, 4} {
 		t.Run(fmt.Sprintf("v%d", version), func(t *testing.T) {
 			s, _ := isolatedTestStore(t)
 			ctx := context.Background()
@@ -376,6 +376,11 @@ func TestMigrationUpgradePreservesExistingData(t *testing.T) {
 			}
 			if version >= 3 {
 				if _, err := s.pool.Exec(ctx, leaseSchema+"; INSERT INTO schema_migrations VALUES(3)"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if version >= 4 {
+				if _, err := s.pool.Exec(ctx, attemptSchema+"; INSERT INTO schema_migrations VALUES(4)"); err != nil {
 					t.Fatal(err)
 				}
 			}

@@ -75,11 +75,11 @@ Migration 004 retains original payload bytes for new events, while older events
 use JSONB rendering. Signatures cover the stable event ID and exact sent bytes.
 
 A crash between receiver acceptance and result commit cannot be resolved from
-PostgreSQL alone. Expired started attempts become `unknown`, never automatically
-pending. Failures are also terminal in this milestone. At-least-once delivery is
-the direction for future bounded retries; exactly-once is not promised. Stable
-event IDs permit receiver deduplication. Owner-facing history, retry scheduling,
-controlled replay and metrics remain planned.
+PostgreSQL alone. Expired started attempts keep `unknown` history. Migration 005 schedules
+[bounded retries](RETRIES.md) for interrupted work and selected failures. Counts
+and schedules survive restart; at most three attempt starts are allowed.
+Exactly-once is not promised. Stable
+event IDs permit receiver deduplication. Owner-facing history, continuous polling, controlled replay and metrics remain planned.
 
 ## Deployment boundaries
 

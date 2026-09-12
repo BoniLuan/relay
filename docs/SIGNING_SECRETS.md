@@ -5,7 +5,8 @@ signing keys. Migration 002 adds encrypted versioned secrets and master-key
 verification records; migration 001 stays unchanged. Existing destinations receive
 no automatic key. An opt-in [lease diagnostic](QUEUE_LEASES.md) exists but never reads signing keys
 or sends events. A separate [single-attempt command](DELIVERY_ATTEMPTS.md) now
-uses the keys. Continuous processing and automatic retries remain disabled.
+uses the keys. Retries are now [persistently scheduled](RETRIES.md); continuous processing remains
+unimplemented.
 
 ## Development setup
 
@@ -16,7 +17,7 @@ cp .env.example .env
 chmod 600 .env
 make keyring             # Creates .local/keyring.json, mode 0600; never overwrites
 make db
-make migrate             # Explicit migration to current schema (version 4)
+make migrate             # Explicit migration to current schema (version 5)
 make register-keyring    # Explicit registration/verification of master keys
 make client NAME=local
 make up

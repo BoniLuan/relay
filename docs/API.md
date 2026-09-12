@@ -45,7 +45,7 @@ surrogates and numbers beyond PostgreSQL numeric limits return 400. Rejected inp
 does not reserve its idempotency key. Large integers are not converted to float64;
 valid surrogate pairs and the literal text `\\u0000` are accepted.
 IDs in requests must be lowercase UUIDs. Events start `pending` and may become
-`leased`, `attempting`, `succeeded`, `failed` or `unknown`; see
+`leased`, `attempting`, `retry_wait`, `succeeded`, `failed` or `unknown`; see
 [the delivery state contract](DELIVERY_ATTEMPTS.md). Ingestion acknowledges durable
 acceptance, not completed HTTP delivery. The event POST
 returns a `Location` header for lookup; duplicates also return
@@ -81,7 +81,8 @@ Authentication and ownership checks precede ingestion. SQL parameters, tokens,
 URLs and payloads are not written to application error logs.
 
 At-least-once delivery is the product direction. The current explicit worker makes
-one signed attempt and never automatically retries a failure or unknown outcome.
+one signed attempt per invocation and persists [bounded retries](RETRIES.md) for
+selected failures and interrupted work. Later invocations process due retries.
 Receivers must deduplicate using the stable event ID; ingestion idempotency alone
 cannot prevent duplicate receiver side effects. See [delivery attempts](DELIVERY_ATTEMPTS.md)
 and [the signing-secret lifecycle](SIGNING_SECRETS.md). Replay remains planned.
@@ -110,7 +111,11 @@ reservation stays `leased` until another claim replaces it; no HTTP delivery is
 implied by this state. Lease tokens/owners/deadlines are not included in this API.
 
 `attempting` means a durable attempt started, not confirmed receiver acceptance.
-On a subsequent sending invocation, expired started work becomes `unknown` without
-resending. `succeeded` requires a complete bounded 2xx response and committed result.
+On a subsequent sending invocation, expired started work keeps `unknown` attempt history and may schedule a bounded
+retry; see [retry semantics](RETRIES.md). `succeeded` requires a complete bounded 2xx response and committed result.
 `failed` and `unknown` do not prove the receiver performed no business operation.
 Duplicate ingestion reports these states without creating another attempt.
+
+`retry_wait` means a retry was scheduled in PostgreSQL. Repeated ingestion never
+resets its attempt count or deadline. There is no continuous polling worker yet;
+processing requires a later explicit `make deliver-once` invocation.
