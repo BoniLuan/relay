@@ -33,7 +33,7 @@ fail; secrets are redacted. Tests use only local TLS fixtures.
 ## 2b — Durable destination signing secrets (implemented)
 
 Migration 002, private AES-256-GCM keyring, canary verification and owner-scoped
-staging, activation, rotation/revocation and one-time secret disclosure. No worker.
+staging, activation, rotation/revocation and one-time secret disclosure.
 See [signing-secret lifecycle](SIGNING_SECRETS.md).
 
 Acceptance: only owners manage keys; concurrent generation creates one staged
@@ -52,17 +52,23 @@ rows do not block other work; expired reservations can be reclaimed; stale owner
 cannot release replacements; failed commits return no lease and leave work pending;
 graceful cancellation attempts bounded cleanup. Existing v1/v2 data is preserved.
 
-## 2c.2 — One complete delivery attempt (planned)
+## 2c.2 — One complete delivery attempt (implemented)
 
-Select the active signing key, record its version, send through the tested transport
-and persist a safe attempt outcome. Fence every state update with the lease token.
+Migration 004, exact payload bytes for new events, explicit `make deliver-once`,
+active signing-version pinning, one bounded HTTPS request and atomic safe outcomes.
+Expired started attempts become unknown without automatic resend. See
+[delivery attempts](DELIVERY_ATTEMPTS.md).
+
+Acceptance: local TLS end-to-end tests verify signed persisted payloads; concurrent
+workers send once; failures/redirects/limits persist safe outcomes; start commit
+failure returns no work; finalization failure cannot invent success; stale tokens
+cannot finish; unknown recovery does not resend; migration preserves v1/v2/v3 data.
 
 ## 2c.3 — Retries and worker recovery (planned)
 
-Connect the tested secret lifecycle and outbound primitives to queued work. Pin a
-secret version for each attempt and re-read the active version for retries.
-Add a separately launched worker, atomic claims, expiring leases, bounded request
-and response handling, HMAC signatures, attempt history and bounded jittered retries.
+Add bounded jittered retry scheduling, continuous polling and an explicit policy
+for unknown outcomes. Re-read the active key on each new attempt. Preserve stable
+event IDs for receiver deduplication and retain every attempt's version/outcome.
 
 Acceptance: concurrent workers cannot own the same active lease; private/special
 addresses and redirect/DNS bypasses are blocked; timeouts and oversized responses

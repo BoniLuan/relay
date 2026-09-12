@@ -231,8 +231,8 @@ func (s *Store) RevokeSigningSecret(ctx context.Context, client, destination str
 	return tx.Commit(ctx)
 }
 
-// ActiveSigningSecret is the future worker's credential boundary, not an HTTP
-// read API. Re-read before every attempt; never fall back to an older version.
+// ActiveSigningSecret reads the current credential for administrative checks.
+// Workers use StartAttempt to atomically pin a version; never fall back to older keys.
 func (s *Store) ActiveSigningSecret(ctx context.Context, client, destination string) (int, delivery.Secret, error) {
 	var version int
 	var keyID string

@@ -9,8 +9,8 @@ client -- bearer token --> HTTP API --> PostgreSQL
                                       events + deliveries (one transaction)
 ```
 
-One Go module and one binary expose `api` (default), `migrate`, and `create-client`
-commands. The future worker will run as a separate process in this same repository.
+One Go module and one binary expose `api` (default), administrative commands and
+`worker`. The worker runs separately from the API, in the same repository.
 There is no broker or in-memory queue. PostgreSQL owns durable state.
 
 `internal/httpapi` owns protocol validation, authentication and status mapping.
@@ -58,29 +58,28 @@ readiness has one second. Server read/write/idle timeouts bound connection use.
 5. The HTTP and PostgreSQL tests: protocol fakes complement real database failure
    and concurrency tests; neither replaces the other.
 
-## Planned: delivery and operation
+## Implemented: one signed attempt
 
-An explicitly started lease-only worker now claims one pending/expired delivery
-transactionally; see [queue leases](QUEUE_LEASES.md). It has no sender or credential
-lookup and never marks delivery complete. A continuous delivery worker remains planned. Delivery is at least once: a receiver can process a request before the
-worker crashes or loses the response. Stable event IDs support receiver deduplication;
-Relay does not promise exactly-once delivery.
+`make worker` remains a lease-only diagnostic. `make deliver-once` starts a separate
+process that either recovers one expired attempt as unknown or sends one pending
+event. See [delivery attempts](DELIVERY_ATTEMPTS.md) for exact states and deadlines.
 
-The isolated `internal/delivery` primitives now implement the initial transport and
-in-memory signing contract; see [delivery security](DELIVERY_SECURITY.md). They are
-not connected to the API or lease-only worker. Durable signing-secret management is implemented separately; the worker must pin
-the selected version per attempt and re-read the active version for retries.
+The worker commits `started` plus the selected signing version before HTTP, then
+uses `internal/delivery` outside the transaction and commits the result afterward.
+The destination lock serializes active-key selection with lifecycle changes.
+Completion checks the lease token/owner and expiry after acquiring the row lock.
+There is no database connection held during network I/O.
 
-The outbound policy covers SSRF-safe DNS resolution and connection pinning,
-private/special-address rejection for IPv4 and IPv6, redirect policy, request
-timeouts, response-size bounds and TLS verification. Secret storage/rotation is implemented in
-`internal/storage/signing.go` with explicit owner authorization. Format validation of a stored HTTPS
-URL is not sufficient; signing and receiver verification now have a tested wire
-contract in the isolated package.
+The sender enforces [the outbound policy](DELIVERY_SECURITY.md) on every attempt.
+Migration 004 retains original payload bytes for new events, while older events
+use JSONB rendering. Signatures cover the stable event ID and exact sent bytes.
 
-Then implement attempt history, retry backoff/jitter with maximum attempts,
-lease recovery after crashes, controlled replay and metrics. Synthetic receivers
-must use a deliberate test-only policy without weakening production protections.
+A crash between receiver acceptance and result commit cannot be resolved from
+PostgreSQL alone. Expired started attempts become `unknown`, never automatically
+pending. Failures are also terminal in this milestone. At-least-once delivery is
+the direction for future bounded retries; exactly-once is not promised. Stable
+event IDs permit receiver deduplication. Owner-facing history, retry scheduling,
+controlled replay and metrics remain planned.
 
 ## Deployment boundaries
 
@@ -121,4 +120,5 @@ Migration 003 adds `leased` state, owner UUID, fresh acquisition token and datab
 expiry. Claims commit before returning and hold no connection during observation.
 Release uses event ID plus owner/token and an unexpired deadline, rejecting stale
 processes after recovery. The one-claim CLI is opt-in and needs no signing keyring.
-Future HTTP completion/retry updates must preserve this ownership condition.
+Signed-attempt completion uses the same ownership condition. Future retry/replay
+updates must preserve it as well.

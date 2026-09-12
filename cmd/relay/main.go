@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/BoniLuan/relay/internal/delivery"
 	"github.com/BoniLuan/relay/internal/httpapi"
 	"github.com/BoniLuan/relay/internal/secrets"
 	"github.com/BoniLuan/relay/internal/storage"
@@ -91,15 +92,26 @@ func run(logger *slog.Logger) error {
 	case "worker":
 		flags := flag.NewFlagSet("worker", flag.ContinueOnError)
 		flags.SetOutput(io.Discard)
+		send := flags.Bool("send", false, "perform one signed HTTP attempt")
 		duration := flags.Duration("lease-duration", 30*time.Second, "lease duration, 1ms to 5m")
 		if err = flags.Parse(os.Args[2:]); err != nil || flags.NArg() != 0 {
-			return errors.New("usage: relay worker [--lease-duration 30s]")
+			return errors.New("usage: relay worker [--send] [--lease-duration 30s]")
+		}
+		if *send {
+			keyring, loadErr := secrets.LoadFile(os.Getenv("RELAY_KEYRING_FILE"))
+			if loadErr != nil {
+				return loadErr
+			}
+			db.WithKeyring(keyring)
 		}
 		readyCtx, readyCancel := context.WithTimeout(ctx, 5*time.Second)
 		err = db.Ready(readyCtx)
 		readyCancel()
 		if err != nil {
 			return errors.New("worker requires an available, migrated database")
+		}
+		if *send {
+			return worker.RunOnce(ctx, db, delivery.NewSender(), logger, *duration)
 		}
 		return worker.Run(ctx, db, logger, *duration)
 	case "api":

@@ -101,5 +101,30 @@ services:
     restart: "no"
     stop_grace_period: 5s
     logging: *logs
+  relay-delivery-worker:
+    image: relay:dev
+    build: .
+    profiles: [delivery]
+    command: [worker, --send]
+    user: "${RELAY_RUN_UID:?Use make or set RELAY_RUN_UID}:${RELAY_RUN_GID:?Use make or set RELAY_RUN_GID}"
+    volumes:
+      - type: bind
+        source: ./.local/keyring.json
+        target: /run/relay/keyring.json
+        read_only: true
+        bind: {create_host_path: false}
+    environment:
+      RELAY_KEYRING_FILE: /run/relay/keyring.json
+      RELAY_DATABASE_URL: postgres://relay_dev:${RELAY_DB_PASSWORD:?Set RELAY_DB_PASSWORD in .env}@relay-db:5432/relay_dev?sslmode=disable
+    depends_on:
+      relay-db: {condition: service_healthy}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.5
+    restart: "no"
+    stop_grace_period: 10s
+    logging: *logs
 volumes:
   relay_pgdata:

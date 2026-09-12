@@ -7,12 +7,12 @@ PostgreSQL migrations, atomic event + pending delivery persistence, client-scope
 idempotency, authenticated event lookup, health endpoints and graceful shutdown.
 Destination signing secrets support encrypted storage, staged activation, rotation
 and revocation; see [the lifecycle guide](docs/SIGNING_SECRETS.md).
-**Not enabled:** outbound event delivery. Tested HTTPS/signing primitives exist in
-`internal/delivery`, but no worker calls them.
-**Implemented for diagnosis:** a lease-only worker reserves one event without sending.
-See [queue leases](docs/QUEUE_LEASES.md).
-**Not implemented:** continuous delivery processing, retries, delivery history, replay,
-client/key lifecycle management or public deployment. No delivery is marked completed.
+**Implemented, opt-in:** one signed HTTPS attempt with durable outcome and safe
+unknown-result recovery. Run it explicitly with `make deliver-once`; see
+[delivery attempts](docs/DELIVERY_ATTEMPTS.md). The lease-only diagnostic remains
+available through `make worker` and [queue leases](docs/QUEUE_LEASES.md).
+**Not implemented:** continuous processing, automatic retries, owner-facing attempt
+history, replay, client-token lifecycle management or public deployment.
 
 ## Run locally with Docker Compose
 
@@ -36,7 +36,7 @@ curl --fail http://127.0.0.1:18081/readyz
 
 `make migrate` builds the application and runs the migration explicitly. Repeating
 it is safe. The API verifies the registered keyring before listening and never
-applies migrations. Readiness checks PostgreSQL, schema version 3 and the loaded
+applies migrations. Readiness checks PostgreSQL, schema version 4 and the loaded
 keyring; `/livez` checks only the HTTP process.
 `make client` is a local administrative operation with database access, not a
 public registration route. Tokens have 256 random bits; only SHA-256 hashes are
@@ -67,12 +67,12 @@ database deliberately has no host binding.
 ## Structure
 
 ```text
-cmd/relay/                    api, migrate and create-client commands
+cmd/relay/                    API, admin and opt-in worker commands
 internal/httpapi/             authentication, validation, HTTP contract tests
 internal/storage/             SQL, transactions and real PostgreSQL tests
 internal/delivery/            outbound security/signing primitives and TLS tests
 internal/secrets/             AES-GCM keyring and private-file loading
-internal/worker/              one-claim lease diagnostic and shutdown handling
+internal/worker/              lease diagnostic and one signed attempt orchestration
 internal/storage/migrations/  embedded, explicit versioned SQL
 compose.yaml                  persistent development environment
 compose.test.yaml             disposable integration environment
@@ -80,12 +80,12 @@ docs/ROADMAP.md               phased milestones and acceptance criteria
 deploy/kubernetes/            historical scaffold manifests; not current deployment
 ```
 
-No public hostname or shared proxy connection is configured. The lease-only worker
-is an opt-in Compose profile; it has no outbound delivery behavior. The existing
+No public hostname or shared proxy connection is configured. Both worker modes
+require explicit commands; `make up` starts only API/database. The existing
 Kubernetes examples need database/secret planning before they can run this version;
 cluster lifecycle belongs to [platform-lab](https://github.com/BoniLuan/platform-lab).
 Do not use the scaffold manifests as a production deployment.
 
-The next-step implementation and its activation requirements are documented in
-[delivery security](docs/DELIVERY_SECURITY.md). The primitives do not start network
-requests by themselves and are not connected to event ingestion.
+The active transport policy is documented in [delivery security](docs/DELIVERY_SECURITY.md).
+The API never sends webhooks itself; the separate sending command commits attempt
+metadata before network I/O and records the outcome afterward.

@@ -15,7 +15,7 @@ import (
 )
 
 // Secret keeps its bytes private and redacts all fmt formatting, including %#v.
-// It is not persisted in this milestone. Export is an explicit provisioning step.
+// Storage encrypts secrets before persistence. Export is explicit provisioning.
 type Secret struct {
 	key   [32]byte
 	valid bool

@@ -356,7 +356,7 @@ func TestMasterKeyRollover(t *testing.T) {
 }
 
 func TestMigrationUpgradePreservesExistingData(t *testing.T) {
-	for _, version := range []int{1, 2} {
+	for _, version := range []int{1, 2, 3} {
 		t.Run(fmt.Sprintf("v%d", version), func(t *testing.T) {
 			s, _ := isolatedTestStore(t)
 			ctx := context.Background()
@@ -366,11 +366,16 @@ func TestMigrationUpgradePreservesExistingData(t *testing.T) {
 			if _, err := s.pool.Exec(ctx, "CREATE TABLE schema_migrations(version integer PRIMARY KEY); INSERT INTO schema_migrations VALUES(1)"); err != nil {
 				t.Fatal(err)
 			}
-			if version == 2 {
+			if version >= 2 {
 				if _, err := s.pool.Exec(ctx, signingSchema); err != nil {
 					t.Fatal(err)
 				}
 				if _, err := s.pool.Exec(ctx, "INSERT INTO schema_migrations VALUES(2)"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if version >= 3 {
+				if _, err := s.pool.Exec(ctx, leaseSchema+"; INSERT INTO schema_migrations VALUES(3)"); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -383,7 +388,14 @@ func TestMigrationUpgradePreservesExistingData(t *testing.T) {
 				t.Fatal(err)
 			}
 			payload := []byte(`null`)
-			e, _, err := s.Ingest(ctx, client, d.ID, "legacy", sha256.Sum256(payload), payload)
+			e := Event{ID: NewID()}
+			hash := sha256.Sum256(payload)
+			_, err = s.pool.Exec(ctx, `INSERT INTO events(id,client_id,destination_id,idempotency_key,request_hash,payload)
+                VALUES($1,$2,$3,'legacy',$4,$5)`, e.ID, client, d.ID, hash[:], payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = s.pool.Exec(ctx, "INSERT INTO deliveries(event_id) VALUES($1)", e.ID)
 			if err != nil {
 				t.Fatal(err)
 			}

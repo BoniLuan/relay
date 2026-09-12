@@ -196,3 +196,9 @@ func TestEnvironmentProxyIgnored(t *testing.T) {
 		t.Fatalf("proxy affected attempt: %+v %v", outcome, err)
 	}
 }
+
+// NewFixtureSender is linked only into tests. External integration tests can
+// exercise the real sender without adding production policy bypasses.
+func NewFixtureSender(t *testing.T, handler http.Handler) (*Sender, *atomic.Int32) {
+	return fixture(t, handler)
+}

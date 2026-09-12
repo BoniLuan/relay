@@ -1,5 +1,5 @@
-// Package worker exercises committed leases only. It deliberately has no sender,
-// credential lookup or delivery-completion behavior in this milestone.
+// Package worker provides a lease diagnostic and an explicit single-attempt
+// sender. Neither mode runs a continuous polling or retry loop.
 package worker
 
 import (

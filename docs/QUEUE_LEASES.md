@@ -120,6 +120,6 @@ commit), a lease (durable metadata with a deadline) and the token (a condition t
 rejects stale updates). See PostgreSQL's [locking clause](https://www.postgresql.org/docs/17/sql-select.html#SQL-FOR-UPDATE-SHARE)
 and [clock functions](https://www.postgresql.org/docs/17/functions-datetime.html#FUNCTIONS-DATETIME-CURRENT).
 
-Next step: connect one bounded signed HTTP attempt, pin the active signing-secret
-version and record the outcome under the same lease token. Retries, lease renewal,
-continuous polling, attempt history and replay remain outside this step.
+The separate [signed attempt command](DELIVERY_ATTEMPTS.md) now uses these leases.
+It adds `attempting` and terminal states; the diagnostic never claims or releases
+started/terminal work. Retries, renewal, polling and replay remain planned.

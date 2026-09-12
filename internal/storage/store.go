@@ -134,8 +134,8 @@ func (s *Store) Ingest(ctx context.Context, client, destination, key string, has
 		return Event{}, false, ErrInvalidPayload
 	}
 	e := Event{ID: NewID(), DestinationID: destination, Status: "pending"}
-	err = tx.QueryRow(ctx, `INSERT INTO events (id,client_id,destination_id,idempotency_key,request_hash,payload)
- VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (client_id,idempotency_key) DO NOTHING RETURNING created_at`, e.ID, client, destination, key, hash[:], payload).Scan(&e.CreatedAt)
+	err = tx.QueryRow(ctx, `INSERT INTO events (id,client_id,destination_id,idempotency_key,request_hash,payload,payload_bytes)
+ VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (client_id,idempotency_key) DO NOTHING RETURNING created_at`, e.ID, client, destination, key, hash[:], payload, payload).Scan(&e.CreatedAt)
 	duplicate := errors.Is(err, pgx.ErrNoRows)
 	if duplicate {
 		var storedHash []byte

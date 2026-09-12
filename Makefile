@@ -61,3 +61,7 @@ worker:
 test-worker-process:
 	docker build -t relay:lease-check .
 	sh scripts/test-worker-process.sh
+
+.PHONY: deliver-once
+deliver-once:
+	docker compose run --rm --build relay-delivery-worker

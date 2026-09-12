@@ -2,14 +2,13 @@
 
 ## Status and boundary
 
-`internal/delivery` implements a bounded HTTPS attempt and in-memory signing and
-verification. It is not called by the API. The opt-in lease-only worker never calls this transport; no outbound command or
-scheduler is enabled. Durable signing keys now have
-an [owner-scoped lifecycle](SIGNING_SECRETS.md). Existing accepted events remain pending.
+`internal/delivery` implements bounded HTTPS attempts and signing/verification.
+The API never calls it. The explicit [one-attempt worker](DELIVERY_ATTEMPTS.md)
+now uses this transport with durable destination secrets; the lease-only diagnostic
+still never sends HTTP. There is no scheduler or automatic retry.
 
-This milestone isolates the network security behavior so it can be reviewed before
-integrating the queue. Run `make test-integration`; the delivery tests also run
-without external connectivity and use local TLS fixtures only.
+Run `make test-integration`: delivery tests use local TLS fixtures only, including
+the full ingestion/worker/persistence path. No production policy bypass is exposed.
 
 ## Connection policy (implemented)
 
@@ -48,12 +47,13 @@ application checks assume normal IP routing; unusual host routing or custom NAT6
 prefixes require a separate deployment/egress review.
 
 Destination registration remains format-only for now. A registered URL is not a
-promise that the outbound policy will allow it. Worker integration must apply this
-policy on every attempt and expose a safe policy-rejection outcome to the owner.
+promise that the outbound policy will allow it. The sending worker applies this
+policy on every attempt and records a safe `destination` failure code. An
+owner-facing attempt-history endpoint remains planned.
 
-## Signing contract (implemented in memory)
+## Signing contract (implemented)
 
-Each destination will get its own 32-byte random secret. `Secret` keeps bytes
+Each destination gets its own 32-byte random secret through explicit provisioning. `Secret` keeps bytes
 private, redacts fmt output and requires an explicit `Export` for provisioning.
 The exported encoding is unpadded URL-safe base64. Neither `Secret` nor `Sender`
 writes logs or retains an exported key. Go does not guarantee memory zeroization;
@@ -86,9 +86,10 @@ time window. Each future retry gets a fresh timestamp but the same event ID.
 
 [Milestone 2b](SIGNING_SECRETS.md) implements encrypted persistence, one-time owner
 disclosure, staged activation, rotation/revocation and master-key canaries. The guide
-documents independent key backups and the remaining restore drill. The future worker
-must re-read the active secret before each attempt, pin that version and never fall
-back to retired/revoked keys. No queue integration is enabled yet.
+documents independent key backups and the remaining restore drill. The sending
+worker reads the active secret under the destination lock and commits that version
+with attempt start. It never falls back to retired/revoked keys. Rotation/revocation
+after start cannot cancel a credential already held by an in-flight process.
 
 ## Tests and Go study path
 

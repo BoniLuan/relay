@@ -5,7 +5,8 @@ body require `Content-Type: application/json`. JSON bodies must use valid UTF-8,
 are limited to 64 KiB and at most 64 nested objects/arrays (including the envelope);
 unknown fields and multiple JSON documents are rejected. HTTPS destination URLs
 are at most 2048 bytes, with a hostname and no userinfo or fragment. This is format
-validation, **not an SSRF policy**. No URL is resolved or fetched in this milestone.
+validation, **not an SSRF policy**. The API never resolves or fetches a URL; the explicit sending worker applies
+[the outbound policy](DELIVERY_SECURITY.md).
 Never put credentials in destination URLs or event payloads.
 
 ## Example
@@ -43,8 +44,10 @@ explicit `null`; omitting it is invalid. Escaped NUL (`\u0000`), unpaired Unicod
 surrogates and numbers beyond PostgreSQL numeric limits return 400. Rejected input
 does not reserve its idempotency key. Large integers are not converted to float64;
 valid surrogate pairs and the literal text `\\u0000` are accepted.
-IDs in requests must be lowercase UUIDs. Events have status `pending` or `leased` (reservation only).
-This means durable acceptance, not a completed HTTP delivery. The event POST
+IDs in requests must be lowercase UUIDs. Events start `pending` and may become
+`leased`, `attempting`, `succeeded`, `failed` or `unknown`; see
+[the delivery state contract](DELIVERY_ATTEMPTS.md). Ingestion acknowledges durable
+acceptance, not completed HTTP delivery. The event POST
 returns a `Location` header for lookup; duplicates also return
 `Idempotency-Replayed: true`.
 
@@ -55,7 +58,8 @@ returns a `Location` header for lookup; duplicates also return
 destinations. Store and retry the **exact body bytes**: whitespace, field order,
 number formatting or a changed destination/payload produce a different SHA-256
 request digest and therefore 409 when the key already exists. There is no JSON
-canonicalization. The database preserves payload semantics as JSONB.
+canonicalization. The database preserves payload semantics as JSONB and, from migration 004,
+exact payload bytes for sending. Legacy events use JSONB rendering.
 
 Keys currently remain reserved for the lifetime of their events, with no expiry
 or deletion API. Different clients may use the same key. A different key creates
@@ -76,12 +80,11 @@ occurred. Retry with the same key and exact body to recover the durable result.
 Authentication and ownership checks precede ingestion. SQL parameters, tokens,
 URLs and payloads are not written to application error logs.
 
-Future delivery will be **at least once**. Ingestion idempotency does not prevent
-a receiver from seeing the same event multiple times after network failures or
-worker crashes. Receivers must deduplicate using the stable event ID. Outbound
-delivery is not enabled. Isolated signing and DNS/SSRF primitives are tested in
-`internal/delivery`; durable secrets now have [an owner-scoped lifecycle](SIGNING_SECRETS.md). The [lease-only worker](QUEUE_LEASES.md) can reserve events; HTTP delivery and
-replay remain planned.
+At-least-once delivery is the product direction. The current explicit worker makes
+one signed attempt and never automatically retries a failure or unknown outcome.
+Receivers must deduplicate using the stable event ID; ingestion idempotency alone
+cannot prevent duplicate receiver side effects. See [delivery attempts](DELIVERY_ATTEMPTS.md)
+and [the signing-secret lifecycle](SIGNING_SECRETS.md). Replay remains planned.
 
 ## Database log privacy
 
@@ -105,3 +108,9 @@ is the only endpoint that discloses a signing credential.
 Event lookup and duplicate ingestion may return `status: leased`. An expired
 reservation stays `leased` until another claim replaces it; no HTTP delivery is
 implied by this state. Lease tokens/owners/deadlines are not included in this API.
+
+`attempting` means a durable attempt started, not confirmed receiver acceptance.
+On a subsequent sending invocation, expired started work becomes `unknown` without
+resending. `succeeded` requires a complete bounded 2xx response and committed result.
+`failed` and `unknown` do not prove the receiver performed no business operation.
+Duplicate ingestion reports these states without creating another attempt.

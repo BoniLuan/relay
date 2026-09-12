@@ -4,7 +4,8 @@ Authenticated owners can stage, activate, inspect metadata and revoke destinatio
 signing keys. Migration 002 adds encrypted versioned secrets and master-key
 verification records; migration 001 stays unchanged. Existing destinations receive
 no automatic key. An opt-in [lease diagnostic](QUEUE_LEASES.md) exists but never reads signing keys
-or sends events. Automatic delivery remains disabled.
+or sends events. A separate [single-attempt command](DELIVERY_ATTEMPTS.md) now
+uses the keys. Continuous processing and automatic retries remain disabled.
 
 ## Development setup
 
@@ -15,7 +16,7 @@ cp .env.example .env
 chmod 600 .env
 make keyring             # Creates .local/keyring.json, mode 0600; never overwrites
 make db
-make migrate             # Explicit migration to current schema (version 3)
+make migrate             # Explicit migration to current schema (version 4)
 make register-keyring    # Explicit registration/verification of master keys
 make client NAME=local
 make up
@@ -89,12 +90,12 @@ the active master key; existing ciphertext uses its recorded key ID. Bulk
 re-encryption and removal of registered master keys are not implemented.
 
 Destination rotation is separate: stage a new version, configure the receiver,
-then activate. Revocation never falls back to retired versions. A future worker
-must select/decrypt the active version immediately before each attempt, record
-that version and use it only for that bounded attempt. Retries must re-read the
+then activate. Revocation never falls back to retired versions. The [sending worker](DELIVERY_ATTEMPTS.md) selects/decrypts the active version
+under the destination lock, commits its version with attempt start and uses it
+for that bounded attempt. Revocation after start cannot retract in-flight work. Retries must re-read the
 active version. Rotation/revocation cannot retract bytes already sent. Receivers
 need explicitly bounded overlap for ordinary rotation and immediate removal of
-compromised keys for emergency revocation. Queue integration must test these rules.
+compromised keys for emergency revocation. Queue integration tests verify version pinning and subsequent active-key selection.
 
 ## Backup and restore
 
@@ -102,7 +103,9 @@ Database dumps contain sensitive event data even though signing keys are encrypt
 Protect database backups and keep the keyring in an independently protected secret
 backup, never in the dump or Git. A lost master key cannot be regenerated.
 
-For a coordinated manual development backup, use a new private backup directory:
+For a coordinated manual development backup, first let all one-off workers and
+administrative commands finish; do not start new ones during the backup. Use a new
+private backup directory:
 
 ```bash
 umask 077
