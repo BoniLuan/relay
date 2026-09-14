@@ -80,8 +80,9 @@ PostgreSQL alone. Expired started attempts keep `unknown` history. Migration 005
 and schedules survive restart; at most three attempt starts are allowed.
 Exactly-once is not promised. Stable
 event IDs permit receiver deduplication. A [continuous worker](CONTINUOUS_WORKER.md) now processes due work sequentially
-with bounded polling and destination cooldown. Owner-facing history, controlled
-replay and metrics remain planned.
+with bounded polling and destination cooldown. [Owner-scoped per-event history](DELIVERY_HISTORY.md) uses one SQL statement to
+read scheduling and ordered attempts consistently, without row locks or keyring
+access. A cross-event list, controlled replay and metrics remain planned.
 
 ## Deployment boundaries
 

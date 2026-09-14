@@ -128,3 +128,8 @@ func (f *fakeBackend) ListSigningSecrets(context.Context, string, string) ([]sto
 }
 func (f *fakeBackend) ActivateSigningSecret(context.Context, string, string, int) error { return f.err }
 func (f *fakeBackend) RevokeSigningSecret(context.Context, string, string, int) error   { return f.err }
+
+func (f *fakeBackend) GetDeliveryHistory(context.Context, string, string) (storage.DeliveryHistory, error) {
+	f.calls++
+	return storage.DeliveryHistory{Attempts: []storage.AttemptMetadata{}}, f.err
+}

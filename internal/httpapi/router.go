@@ -22,6 +22,7 @@ import (
 
 // Backend is the small persistence boundary exercised by HTTP tests.
 type Backend interface {
+	GetDeliveryHistory(context.Context, string, string) (storage.DeliveryHistory, error)
 	StageSigningSecret(context.Context, string, string) (storage.SigningSecret, delivery.Secret, error)
 	ListSigningSecrets(context.Context, string, string) ([]storage.SigningSecret, error)
 	ActivateSigningSecret(context.Context, string, string, int) error
@@ -47,7 +48,7 @@ func NewHandler(db Backend, logger *slog.Logger) http.Handler {
 	a := api{db: db, logger: logger}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		respond(w, 200, map[string]string{"service": "relay", "stage": "durable-ingestion", "message": "Events are stored; outbound delivery is not implemented."})
+		respond(w, 200, map[string]string{"service": "relay", "stage": "durable-delivery", "message": "Authenticated events are stored; signed delivery requires an explicitly started worker."})
 	})
 	mux.HandleFunc("GET /livez", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok\n")) })
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
@@ -62,6 +63,7 @@ func NewHandler(db Backend, logger *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /api/v1/destinations", a.auth(a.destination))
 	mux.HandleFunc("POST /api/v1/events", a.auth(a.ingest))
 	mux.HandleFunc("GET /api/v1/events/{id}", a.auth(a.event))
+	mux.HandleFunc("GET /api/v1/events/{id}/attempts", a.auth(a.history))
 	mux.HandleFunc("POST /api/v1/destinations/{id}/signing-secrets", a.auth(a.stageSecret))
 	mux.HandleFunc("GET /api/v1/destinations/{id}/signing-secrets", a.auth(a.listSecrets))
 	mux.HandleFunc("POST /api/v1/destinations/{id}/signing-secrets/{version}/activate", a.auth(a.activateSecret))

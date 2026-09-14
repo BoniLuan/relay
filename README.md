@@ -13,8 +13,10 @@ unknown-result recovery and [bounded persisted retries](docs/RETRIES.md). Run it
 available through `make worker` and [queue leases](docs/QUEUE_LEASES.md).
 **Implemented, opt-in:** a [continuous worker](docs/CONTINUOUS_WORKER.md) with
 bounded polling, shutdown and destination cooldown. Start it with `make worker-start`.
-**Not implemented:** owner-facing attempt
-history, replay, client-token lifecycle management or public API deployment.
+**Implemented:** [owner-scoped per-event attempt history](docs/DELIVERY_HISTORY.md),
+including safe outcomes and retry schedules.
+**Not implemented:** paginated delivery listing, replay, client-token lifecycle
+management or public API deployment.
 
 The English [project site](https://relay.boniluan.com) presents the implementation
 and illustrative delivery flows. It exposes no backend API; see the

@@ -138,9 +138,18 @@ func TestPostgresHTTP(t *testing.T) {
 	request("POST", "/api/v1/events", body+" ", key, token, 409)
 	request("POST", "/api/v1/events", body, key, otherToken, 404)
 	request("GET", "/api/v1/events/"+event.ID, "", "", otherToken, 404)
+	historyPath := "/api/v1/events/" + event.ID + "/attempts"
+	request("GET", historyPath, "", "", otherToken, 404)
+	request("GET", historyPath, "", "", "", 401)
+	request("GET", "/api/v1/events/"+storage.NewID()+"/attempts", "", "", token, 404)
+	var history storage.DeliveryHistory
+	if err = json.Unmarshal(request("GET", historyPath, "", "", token, 200), &history); err != nil || history.EventID != event.ID || history.Status != "pending" || history.Attempts == nil || len(history.Attempts) != 0 || history.MaxAttempts != 3 {
+		t.Fatalf("unexpected owner history: %+v, %v", history, err)
+	}
 	// Reopen the pool and HTTP server: acceptance must survive API restarts.
 	db.Close()
 	request("GET", "/readyz", "", "", token, 503)
+	request("GET", historyPath, "", "", token, 503)
 	request("GET", "/livez", "", "", token, 200)
 	request("POST", "/api/v1/events", body, key, token, 503)
 	server.Close()
@@ -153,5 +162,6 @@ func TestPostgresHTTP(t *testing.T) {
 	server = httptest.NewServer(NewHandler(db, slog.New(slog.NewTextHandler(io.Discard, nil))))
 	defer server.Close()
 	request("GET", "/api/v1/events/"+event.ID, "", "", token, 200)
+	request("GET", historyPath, "", "", token, 200)
 	request("POST", "/api/v1/events", body, key, token, 200)
 }

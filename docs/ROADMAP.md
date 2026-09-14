@@ -89,16 +89,33 @@ stale tokens and failed commits cannot partially defer work; key repair resumes
 processing after cooldown; due retries run automatically; in-flight cancellation
 records an outcome; a real worker survives a disposable DB outage and stops on SIGTERM.
 
-## 3 — Operation and demonstration (planned)
+## 3a — Owner-scoped per-event attempt history (implemented)
 
-Add owner-scoped delivery history, controlled failed-delivery replay, token
+Authenticated `GET /api/v1/events/{id}/attempts`, safe metadata, retry schedule,
+and deterministic attempt order. A single statement snapshot keeps delivery and
+attempt results consistent. The existing three-attempt constraint bounds the
+response without pagination. See [history contract](DELIVERY_HISTORY.md).
+
+Acceptance: foreign and missing events return indistinguishable 404 responses;
+unattempted events return an empty array; in-flight and unknown results remain
+explicit; private fields are absent; reads do not wait on finalization row locks
+or expose uncommitted changes; pool restart preserves history; errors fail closed.
+
+## 3b — Operation and demonstration (planned)
+
+Add a paginated owner-scoped delivery list, controlled failed-delivery replay, token
 rotation/revocation, quotas, metrics, backup/restore and a reproducible failure demo.
 
 Acceptance: replay authorization and limits are tested; secrets/payloads are absent
 from logs; a backup restores into an isolated database; the demo explains duplicate
 delivery and recovery. Decide retention and idempotency expiry together.
 
-## 4 — Portfolio publication and optional Kubernetes (planned)
+## 4a — Public institutional site (implemented)
+
+English static project site at `relay.boniluan.com`, dedicated origin TLS, and
+portfolio links. The API remains private. See [site operations](SITE.md).
+
+## 4b — Public API deployment and optional Kubernetes (planned)
 
 Choose deployment based on measured resource needs. Plan DNS/TLS, credentials,
 backups and one explicitly authorized integration. Kubernetes learning remains

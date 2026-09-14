@@ -1,4 +1,4 @@
-# API contract — durable ingestion milestone
+# API contract
 
 All `/api/v1/*` endpoints require `Authorization: Bearer <token>`. Requests with a
 body require `Content-Type: application/json`. JSON bodies must use valid UTF-8,
@@ -38,6 +38,7 @@ unset RELAY_TOKEN
 | `POST /api/v1/destinations` with `url` | 201 | `id`, `url`, `created_at` |
 | `POST /api/v1/events` with `destination_id`, `payload` | 201 new / 200 duplicate | `id`, `destination_id`, `status`, `created_at` |
 | `GET /api/v1/events/{id}` | 200 | Same event metadata; payload is not returned |
+| `GET /api/v1/events/{id}/attempts` | 200 | Owner-scoped delivery status, retry schedule, and up to three ordered attempt records; see [history contract](DELIVERY_HISTORY.md) |
 
 `payload` accepts JSON values representable by PostgreSQL 17 JSONB, including
 explicit `null`; omitting it is invalid. Escaped NUL (`\u0000`), unpaired Unicode
@@ -124,3 +125,9 @@ otherwise processing requires another `make deliver-once` invocation.
 Missing/decryption-failed signing keys pause new claims for that destination for
 60 seconds. Its unstarted delivery remains `pending` without consuming an attempt.
 The API currently exposes neither the cooldown deadline nor an early-resume action.
+
+## Attempt history
+
+The [per-event history endpoint](DELIVERY_HISTORY.md) returns safe attempt metadata
+and scheduling in one consistent database snapshot. It never sends or replays an
+event. The existing event lookup and idempotent ingestion responses are unchanged.
