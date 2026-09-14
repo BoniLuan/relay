@@ -23,6 +23,7 @@ A new event returns HTTP 200 and an empty array, not `null`:
   "attempt_count": 0,
   "max_attempts": 3,
   "next_attempt_at": null,
+  "replay": null,
   "attempts": []
 }
 ```
@@ -32,7 +33,7 @@ After explicitly authorized delivery attempts, each array item contains:
 | Field | Meaning |
 | --- | --- |
 | `id` | Stable attempt UUID, distinct from the stable event ID |
-| `attempt_number` | Committed start number, ascending from 1 through 3 |
+| `attempt_number` | Committed start number, ascending from 1 through at most 6 |
 | `state` | `started`, `succeeded`, `failed`, or `unknown` |
 | `signing_version` | Version pinned when this attempt started; no credential |
 | `started_at` | Database timestamp of the durable attempt start |
@@ -67,7 +68,7 @@ actual instant of a worker crash or receiver action. Receivers must deduplicate.
   row locks and never claims, recovers, retries or replays work. A worker may
   commit new information immediately after the snapshot; refetch to observe it.
 - The existing unique `(event_id, attempt_number)` index and number constraint
-  bound the array to three entries and order it deterministically. No pagination,
+  bound the array to six entries and order it deterministically. No pagination,
   migration, dependency or new index is necessary for this per-event endpoint.
   A future cross-event list requires its own bounded pagination design.
 - No master keyring is needed to read persisted metadata. Token authentication
@@ -91,6 +92,8 @@ query. Nullable fields use pointers so JSON distinguishes absent outcomes from
 zero values. `internal/storage/history_test.go` follows a failed attempt, an
 interrupted retry, and a successful final attempt without sending external HTTP.
 
-This milestone does not add a delivery list, replay, retention, metrics, or public
-API deployment. Reads never reset retry budgets. Review this contract before
-implementing controlled replay.
+[Paginated listing](DELIVERY_LIST.md) and [controlled replay](REPLAY.md) are now
+implemented separately. `replay` exposes an immutable receipt or `null`;
+`max_attempts` starts at three and may become four, five, or six after an explicit
+replay grant. Reads never reset retry budgets. Retention, metrics and public API
+deployment remain planned.

@@ -57,7 +57,7 @@ func (s *Store) ClaimDelivery(ctx context.Context, owner string, duration time.D
   JOIN events e ON e.id=q.event_id
   JOIN destinations dst ON dst.id=e.destination_id
   WHERE (dst.delivery_paused_until IS NULL OR dst.delivery_paused_until<=statement_timestamp())
-   AND q.attempt_count<3 AND (q.status='pending'
+   AND q.attempt_count<q.attempt_limit AND (q.status='pending'
    OR (q.status='retry_wait' AND q.next_attempt_at<=statement_timestamp())
    OR (q.status='leased' AND q.lease_expires_at<=statement_timestamp()))
   ORDER BY q.created_at,q.event_id

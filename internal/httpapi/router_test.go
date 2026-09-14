@@ -138,3 +138,8 @@ func (f *fakeBackend) ListDeliveries(context.Context, string, storage.DeliveryFi
 	f.calls++
 	return []storage.DeliverySummary{}, false, f.err
 }
+
+func (f *fakeBackend) ReplayDelivery(context.Context, string, string, string, [32]byte) (storage.ReplayReceipt, bool, error) {
+	f.calls++
+	return storage.ReplayReceipt{}, f.duplicate, f.err
+}

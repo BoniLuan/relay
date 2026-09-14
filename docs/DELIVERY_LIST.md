@@ -90,7 +90,7 @@ before decoding; unknown cursor fields and trailing JSON are rejected.
 Migration 007 adds `(client_id, created_at DESC, id DESC)` and
 `(client_id, destination_id, created_at DESC, id DESC)` event indexes. Existing
 delivery data, retries, idempotency and attempt histories are unchanged. Run the
-explicit migration before running the new API; readiness requires schema 7.
+explicit migration before running the new API; current readiness requires schema 8.
 Index creation is transactional and may block writes on the events table while
 building; use a maintenance window if applying it to a populated live database.
 No shared database or production data is used by the test suite.
@@ -110,5 +110,5 @@ queries, error handling, and migration from populated schema 6 without data loss
 
 Read `internal/httpapi/list.go` for validation and cursor encoding;
 `internal/storage/list.go` for parameterized keyset SQL and the extra-row method;
-then the HTTP integration and storage listing tests. Replay remains a separate
-milestone and is never triggered by a read.
+then the HTTP integration and storage listing tests. [Controlled replay](REPLAY.md) is a separate mutation and is never triggered by a
+read.

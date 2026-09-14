@@ -85,7 +85,7 @@ func (s *Store) StartAttempt(ctx context.Context, lease Lease) (AttemptWork, err
 	// Check after all lock waits, with room for 5s HTTP and 3s finalization.
 	err = tx.QueryRow(ctx, `UPDATE deliveries SET status='attempting',attempt_count=attempt_count+1
  WHERE event_id=$1 AND status='leased' AND lease_owner=$2 AND lease_token=$3
- AND attempt_count<3 AND lease_expires_at>clock_timestamp()+interval '8 seconds'
+ AND attempt_count<attempt_limit AND lease_expires_at>clock_timestamp()+interval '8 seconds'
  RETURNING attempt_count`, lease.EventID, lease.OwnerID, lease.token).Scan(&work.Number)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AttemptWork{}, ErrLeaseLost
@@ -145,15 +145,16 @@ func (s *Store) FinishAttempt(ctx context.Context, lease Lease, id string, outco
 	if err = lockDelivery(ctx, tx, lease.EventID); err != nil {
 		return err
 	}
-	var count int
-	if err = tx.QueryRow(ctx, "SELECT attempt_count FROM deliveries WHERE event_id=$1", lease.EventID).Scan(&count); err != nil {
+	var count, limit int
+	if err = tx.QueryRow(ctx, "SELECT attempt_count,attempt_limit FROM deliveries WHERE event_id=$1", lease.EventID).Scan(&count, &limit); err != nil {
 		return err
 	}
 	deliveryState := state
 	var delay time.Duration
-	if outcome.retryable() && count < maxAttempts {
+	if outcome.retryable() && count < limit {
 		deliveryState = "retry_wait"
-		delay = retryDelay(count)
+		// The round starts at zero initially, or at the count saved by replay.
+		delay = retryDelay(count - (limit - maxAttempts))
 	}
 	result, err := tx.Exec(ctx, `UPDATE deliveries SET status=$4,lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,
  next_attempt_at=CASE WHEN $4='retry_wait' THEN clock_timestamp()+($5::bigint*interval '1 millisecond') ELSE NULL END
@@ -186,10 +187,10 @@ func (s *Store) RecoverAttempt(ctx context.Context) (bool, error) {
 	}
 	defer rollback(tx)
 	var event, token string
-	var count int
-	err = tx.QueryRow(ctx, `SELECT event_id::text,lease_token::text,attempt_count FROM deliveries
+	var count, limit int
+	err = tx.QueryRow(ctx, `SELECT event_id::text,lease_token::text,attempt_count,attempt_limit FROM deliveries
  WHERE status='attempting' AND lease_expires_at<=statement_timestamp()
- ORDER BY lease_expires_at,event_id LIMIT 1 FOR UPDATE SKIP LOCKED`).Scan(&event, &token, &count)
+ ORDER BY lease_expires_at,event_id LIMIT 1 FOR UPDATE SKIP LOCKED`).Scan(&event, &token, &count, &limit)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
@@ -206,9 +207,10 @@ func (s *Store) RecoverAttempt(ctx context.Context) (bool, error) {
 	}
 	state := "unknown"
 	var delay time.Duration
-	if count < maxAttempts {
+	if count < limit {
 		state = "retry_wait"
-		delay = retryDelay(count)
+		// The round starts at zero initially, or at the count saved by replay.
+		delay = retryDelay(count - (limit - maxAttempts))
 	}
 	_, err = tx.Exec(ctx, `UPDATE deliveries SET status=$2,lease_token=NULL,lease_owner=NULL,lease_expires_at=NULL,
  next_attempt_at=CASE WHEN $2='retry_wait' THEN clock_timestamp()+($3::bigint*interval '1 millisecond') ELSE NULL END

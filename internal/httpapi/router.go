@@ -22,6 +22,7 @@ import (
 
 // Backend is the small persistence boundary exercised by HTTP tests.
 type Backend interface {
+	ReplayDelivery(context.Context, string, string, string, [32]byte) (storage.ReplayReceipt, bool, error)
 	ListDeliveries(context.Context, string, storage.DeliveryFilter) ([]storage.DeliverySummary, bool, error)
 	GetDeliveryHistory(context.Context, string, string) (storage.DeliveryHistory, error)
 	StageSigningSecret(context.Context, string, string) (storage.SigningSecret, delivery.Secret, error)
@@ -64,6 +65,7 @@ func NewHandler(db Backend, logger *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /api/v1/destinations", a.auth(a.destination))
 	mux.HandleFunc("POST /api/v1/events", a.auth(a.ingest))
 	mux.HandleFunc("GET /api/v1/deliveries", a.auth(a.deliveries))
+	mux.HandleFunc("POST /api/v1/events/{id}/replay", a.auth(a.replay))
 	mux.HandleFunc("GET /api/v1/events/{id}", a.auth(a.event))
 	mux.HandleFunc("GET /api/v1/events/{id}/attempts", a.auth(a.history))
 	mux.HandleFunc("POST /api/v1/destinations/{id}/signing-secrets", a.auth(a.stageSecret))
@@ -220,6 +222,10 @@ func (a api) event(w http.ResponseWriter, r *http.Request, client string) {
 }
 func (a api) failure(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
+	case errors.Is(err, storage.ErrReplayState):
+		problem(w, 409, "only terminal failed deliveries with no prior replay are eligible")
+	case errors.Is(err, storage.ErrReplayConflict):
+		problem(w, 409, "replay already requested; retry with its original idempotency key and exact body")
 	case errors.Is(err, secrets.ErrKeyring):
 		problem(w, 503, "signing keys unavailable")
 	case errors.Is(err, storage.ErrSecretState):
@@ -233,7 +239,7 @@ func (a api) failure(w http.ResponseWriter, r *http.Request, err error) {
 	default:
 		// Database errors may contain payloads, SQL parameters or credentials.
 		a.logger.Error("database operation failed", "method", r.Method, "operation", r.Pattern)
-		if r.Pattern == "POST /api/v1/events" {
+		if r.Pattern == "POST /api/v1/events" || r.Pattern == "POST /api/v1/events/{id}/replay" {
 			problem(w, 503, "storage unavailable; retry with the same idempotency key and body")
 		} else {
 			problem(w, 503, "storage unavailable; inspect operation status before retrying")

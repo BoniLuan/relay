@@ -15,7 +15,8 @@ private and workers are explicitly opt-in.
 - [x] Encrypted signing secrets with staging, activation, rotation and revocation.
 - [x] DNS-pinned HTTPS, SSRF policy, no redirects/proxies, request and response limits.
 - [x] Signed webhook attempts, durable leases, fenced completion and crash recovery.
-- [x] Three-attempt persisted retry budget with jitter and stable receiver deduplication IDs.
+- [x] Three-start automatic retry budget with jitter and stable receiver deduplication IDs.
+- [x] One controlled replay per terminal failed event, with audit/idempotency and up to three additional starts.
 - [x] Opt-in continuous worker, bounded polling/error backoff, destination key cooldown.
 - [x] Owner-scoped per-event attempt history with consistent, safe metadata.
 - [x] Paginated owner-scoped delivery listing with status/destination filters (migration 007).
@@ -24,7 +25,6 @@ private and workers are explicitly opt-in.
 
 ## Remaining work, in order
 
-- [ ] Controlled replay with eligibility, authorization, idempotency, limits and audit history.
 - [ ] Client bearer-token rotation and revocation.
 - [ ] Rate limits, per-client quotas and bounds on pending work.
 - [ ] Operational metrics, alerts and reproducible failure/recovery demo.
@@ -59,3 +59,16 @@ are explicit in [DELIVERY_LIST.md](DELIVERY_LIST.md).
 The full isolated integration/race suite, vet, and PostgreSQL log-privacy check
 passed. The timestamp-tie pagination test was also rerun after removing its
 dependency on the current date. No development/production migration was executed.
+
+### Controlled replay — 2026-09-14
+
+Reviewed transaction locking, ownership, exact-request idempotency, unique lifetime
+grant, audit metadata, unchanged event identity, and worker budget/backoff math.
+No blocking issue found in the inspected scope. Unknown terminal results remain
+ineligible by policy; replay does not imply public production readiness.
+
+The full integration suite passed with race detector, vet and PostgreSQL log
+privacy, including a local TLS replay with key rotation and receiver deduplication.
+Real process checks passed for live-claim exclusion, SIGKILL recovery, SIGTERM
+cleanup, destination cooldown and temporary test-database outage recovery. The
+test stack was removed. Migration 008 was applied only to disposable databases.

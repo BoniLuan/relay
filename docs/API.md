@@ -38,8 +38,9 @@ unset RELAY_TOKEN
 | `POST /api/v1/destinations` with `url` | 201 | `id`, `url`, `created_at` |
 | `POST /api/v1/events` with `destination_id`, `payload` | 201 new / 200 duplicate | `id`, `destination_id`, `status`, `created_at` |
 | `GET /api/v1/events/{id}` | 200 | Same event metadata; payload is not returned |
+| `POST /api/v1/events/{id}/replay` | 201 new / 200 duplicate | Immutable replay receipt; requires idempotency key and duplicate-risk acknowledgment; see [replay contract](REPLAY.md) |
 | `GET /api/v1/deliveries` | 200 | Paginated owner-scoped summaries with status/destination filters; see [listing contract](DELIVERY_LIST.md) |
-| `GET /api/v1/events/{id}/attempts` | 200 | Owner-scoped delivery status, retry schedule, and up to three ordered attempt records; see [history contract](DELIVERY_HISTORY.md) |
+| `GET /api/v1/events/{id}/attempts` | 200 | Owner-scoped delivery status, retry schedule, and up to six ordered attempt records; see [history contract](DELIVERY_HISTORY.md) |
 
 `payload` accepts JSON values representable by PostgreSQL 17 JSONB, including
 explicit `null`; omitting it is invalid. Escaped NUL (`\u0000`), unpaired Unicode
@@ -88,7 +89,7 @@ selected failures and interrupted work. Later cycles of the explicit [continuous
 manual one-cycle invocations, process due retries.
 Receivers must deduplicate using the stable event ID; ingestion idempotency alone
 cannot prevent duplicate receiver side effects. See [delivery attempts](DELIVERY_ATTEMPTS.md)
-and [the signing-secret lifecycle](SIGNING_SECRETS.md). Replay remains planned.
+and [the signing-secret lifecycle](SIGNING_SECRETS.md). [Controlled replay](REPLAY.md) now authorizes one additional bounded round.
 
 ## Database log privacy
 

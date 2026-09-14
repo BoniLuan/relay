@@ -8,7 +8,7 @@ const scenarios = {
   ],
   retry: [
     "attempting → retry_wait → attempting → succeeded",
-    "Example: a 503 schedules a jittered retry; the next attempt returns 204. At most three attempts may start. The event ID stays the same so receivers can deduplicate.",
+    "Example: a 503 schedules a jittered retry; the next attempt returns 204. The initial round allows up to three starts; a replay requires explicit authorization. The event ID stays the same so receivers can deduplicate.",
   ],
   crash: [
     "attempting → unknown → retry_wait",

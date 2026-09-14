@@ -3,8 +3,8 @@
 ## Scope
 
 `make deliver-once` explicitly runs one signed attempt, or recovers one expired
-started attempt and exits. This command has no polling or lease renewal,
-replay endpoint or public deployment. `make up` starts only API/database.
+started attempt and exits. This command has no polling or lease renewal. [Controlled replay](REPLAY.md)
+is a separate authenticated API operation; public API deployment remains planned. `make up` starts only API/database.
 Retries now follow [the bounded schedule policy](RETRIES.md) on later invocations.
 `make worker` remains the lease-only diagnostic described in [queue leases](QUEUE_LEASES.md).
 
@@ -52,7 +52,7 @@ a later retry within the persisted budget.
 
 `failed` does **not** guarantee the receiver did nothing: response read errors,
 timeouts and cancellations may occur after a side effect. Bounded at-least-once processing requires later worker invocations to process
-persisted retries; it does not guarantee eventual success. Exactly-once delivery is not promised. Retries preserve event IDs; future replay must too; receivers must durably deduplicate them.
+persisted retries; it does not guarantee eventual success. Exactly-once delivery is not promised. Retries preserve event IDs; controlled replay does too; receivers must durably deduplicate them.
 A lease token fences database updates, not remote HTTP side effects.
 
 ## Payload and signing versions
@@ -159,4 +159,4 @@ See `internal/delivery/worker_integration_test.go` for the full path and
 `internal/storage/attempts_test.go` for failures at database commit boundaries.
 
 See [durable retries](RETRIES.md) and the [continuous worker](CONTINUOUS_WORKER.md)
-for processing beyond one cycle. Replay remains planned.
+for processing beyond one cycle. [Controlled replay](REPLAY.md) now grants one additional bounded round.

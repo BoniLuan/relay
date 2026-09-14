@@ -57,7 +57,7 @@ configured interval. Logs record the backoff without forwarding raw dependency
 errors. This process backoff is separate from a delivery's persisted retry deadline.
 
 Due [retries](RETRIES.md) now run automatically while the process is active. Their
-three-start limit, persisted jitter, stable event IDs, per-attempt signing versions
+persisted attempt limit (three initially), persisted jitter, stable event IDs, per-attempt signing versions
 and unknown-outcome history are unchanged. One recovery cycle still sends no HTTP;
 a subsequent cycle may claim work whose persisted deadline has passed.
 
@@ -137,5 +137,7 @@ makes waiting cancellable; the synchronous loop bounds concurrency. Then read
 `internal/storage/cooldown.go`: releasing a reservation and pausing a destination
 must commit together. `internal/worker/attempt.go` continues to own one cycle.
 
-This milestone does not add replay, owner history, fair scheduling, quotas,
-metrics, autoscaling, lease renewal or a production deployment. Stop here for review.
+[Owner history](DELIVERY_HISTORY.md), [listing](DELIVERY_LIST.md), and
+[controlled replay](REPLAY.md) are implemented as separate milestones. Fair
+scheduling, quotas, metrics, autoscaling, lease renewal and public API deployment
+remain planned.

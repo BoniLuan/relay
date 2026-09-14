@@ -116,9 +116,22 @@ newer insertions do not shift subsequent pages; cursors preserve client/filter
 context; malformed input fails closed; old data survives migration; private
 fields are absent; reads never claim or replay work.
 
-## 3c — Operation and demonstration (planned)
+## 3c — Controlled failed-delivery replay (implemented)
 
-Add controlled failed-delivery replay, token
+One owner-authorized replay per event lifetime, after terminal failure, with
+exact-request idempotency and explicit duplicate-risk acknowledgment. Migration
+008 adds durable audit receipts and a three-start additional budget (six total
+at most). History and event identity are preserved. See [replay contract](REPLAY.md).
+
+Acceptance: only the owner can replay eligible terminal failures; concurrent
+requests yield one grant; duplicate receipts survive worker progress; failed
+commits grant nothing; current keys and outbound policy apply; old leases cannot
+finish replay work; failures/crashes stop at the persisted limit; original data
+survives migration and ingestion idempotency remains intact.
+
+## 3d — Operation and demonstration (planned)
+
+Add token
 rotation/revocation, quotas, metrics, backup/restore and a reproducible failure demo.
 
 Acceptance: replay authorization and limits are tested; secrets/payloads are absent

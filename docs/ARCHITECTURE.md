@@ -83,7 +83,9 @@ event IDs permit receiver deduplication. A [continuous worker](CONTINUOUS_WORKER
 with bounded polling and destination cooldown. [Owner-scoped per-event history](DELIVERY_HISTORY.md) uses one SQL statement to
 read scheduling and ordered attempts consistently, without row locks or keyring
 access. [Cross-event listing](DELIVERY_LIST.md) uses owner-filtered keyset pages and
-explicit event indexes (migration 007). Controlled replay and metrics remain planned.
+explicit event indexes (migration 007). [Controlled replay](REPLAY.md) atomically records one replay grant and raises the
+persisted attempt ceiling without resetting counters or changing the event ID.
+Metrics remain planned.
 
 ## Deployment boundaries
 

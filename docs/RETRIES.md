@@ -26,8 +26,9 @@ readiness prevents new invocations from starting against an old schema.
 
 ## Retry policy
 
-The limit is **three committed attempt starts total**, including the first send.
-It is currently a fixed policy, not a client-controlled configuration.
+The original automatic round permits **three committed attempt starts**, including
+the first send. One explicit [controlled replay](REPLAY.md) can grant up to three
+additional starts after a terminal failure. There is no automatic budget reset.
 
 | Observed outcome | Delivery action |
 | --- | --- |
@@ -49,21 +50,23 @@ without consuming attempts.
 
 After attempt 1, equal-jitter backoff is 5–10 seconds; after attempt 2, 10–20
 seconds (upper bounds exclusive, millisecond storage precision). There is no fourth
-attempt. The selected interval is persisted using PostgreSQL's clock in the result
+automatic start without an explicit replay grant; the same backoff applies within
+the replay round. The selected interval is persisted using PostgreSQL's clock in the result
 transaction. Claims do not recalculate the delay, and process restart does not
 reset it. Timing begins when scheduling is written; callers learn it only after
 commit. Long commit latency can consume some of the waiting interval.
 
 ## State and transaction rules
 
-- `retry_wait` requires a non-null `next_attempt_at` and a count of 1 or 2. Other
+- `retry_wait` requires a non-null `next_attempt_at` and a positive count below the persisted `attempt_limit`. Other
   states require a null schedule. Waiting deliveries hold no lease.
 - Claims select due retries, fresh pending work or expired unstarted leases, with
   budget remaining. The existing row locks, `SKIP LOCKED` and fresh tokens apply.
   Claiming clears the consumed schedule. Selection remains best-effort creation
   order, not strict FIFO or a fair scheduler across clients.
 - Attempt start increments `attempt_count` and inserts `attempt_number` atomically.
-  Per-event attempt numbers are unique and bounded by three. A failed start commit
+  Per-event attempt numbers are unique and bounded by six, with only three starts
+  authorized initially. A failed start commit
   consumes no attempt; a crash after start commit does, even if no bytes were sent.
 - Finalization stores an immutable historical failure and schedules the next retry
   in one transaction. Later attempts insert new rows; they never replace history.

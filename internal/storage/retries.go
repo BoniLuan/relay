@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+// maxAttempts is the size of one automatic round. An explicit replay grants
+// one more round, but never resets the global attempt counter.
 const maxAttempts = 3
 
 func (r AttemptResult) retryable() bool {
