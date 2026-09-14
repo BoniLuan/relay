@@ -149,3 +149,16 @@ both active tokens and idempotent retries. Excess returns 429 with integer-secon
 `Retry-After` and no endpoint execution. Authentication failure remains 401;
 admission storage failure returns 503. See [RATE_LIMIT.md](RATE_LIMIT.md) for
 fixed-window bursts, retry semantics and remaining public-deployment protections.
+
+## Capacity quotas and usage
+
+Each client has limits of 20 destinations, 1,000 retained events and 100 open
+deliveries (including retries, reserved work and in-flight attempts). New
+ingestion and replay enforce capacity in their write transaction. A quota
+rejection returns 409 with `code: "quota_exceeded"`, `resource` and `limit`,
+without Retry-After. Existing exact idempotent receipts remain available.
+
+`GET /api/v1/usage` requires a bearer and returns `destinations`, `events` and
+`open_deliveries`, each containing integer `used` and `limit` values. This is a
+snapshot for the authenticated client, not a capacity reservation. See
+[QUOTAS.md](QUOTAS.md) for exact semantics and retention limitations.

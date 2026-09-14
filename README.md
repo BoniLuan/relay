@@ -23,7 +23,9 @@ idempotent authorization, preserved history and up to three additional starts.
 with up to two active credentials per client and one-time disclosure after commit.
 **Implemented:** [durable per-client request rate limits](docs/RATE_LIMIT.md),
 with a shared 120-request fixed minute window and HTTP 429 / Retry-After.
-**Not implemented:** quotas, operational metrics, a full restore drill or public API deployment.
+**Implemented:** [per-client capacity quotas and usage](docs/QUOTAS.md):
+20 destinations, 1,000 retained events and 100 open deliveries.
+**Not implemented:** operational metrics, a full restore drill or public API deployment.
 
 The English [project site](https://relay.boniluan.com) presents the implementation
 and illustrative delivery flows. It exposes no backend API; see the

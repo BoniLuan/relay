@@ -33,6 +33,9 @@ func (s *Store) ReplayDelivery(ctx context.Context, client, event, key string, h
 		return ReplayReceipt{}, false, err
 	}
 	defer rollback(tx)
+	if err = lockQuotaClient(ctx, tx, client); err != nil {
+		return ReplayReceipt{}, false, err
+	}
 	var state string
 	var count, limit int
 	err = tx.QueryRow(ctx, `SELECT d.status,d.attempt_count,d.attempt_limit FROM deliveries d
@@ -64,6 +67,9 @@ func (s *Store) ReplayDelivery(ctx context.Context, client, event, key string, h
 	// live delivery cannot be forced back into the queue by this endpoint.
 	if state != "failed" || count < 1 || count > maxAttempts || limit != maxAttempts {
 		return ReplayReceipt{}, false, ErrReplayState
+	}
+	if err = checkOpenQuota(ctx, tx, client); err != nil {
+		return ReplayReceipt{}, false, err
 	}
 	receipt = ReplayReceipt{ID: NewID(), EventID: event, PreviousAttemptCount: count, MaxAttempts: count + maxAttempts}
 	err = tx.QueryRow(ctx, `INSERT INTO delivery_replays(id,event_id,requested_by,idempotency_hash,request_hash,previous_attempt_count,attempt_limit)

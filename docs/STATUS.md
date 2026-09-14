@@ -23,12 +23,11 @@ private and workers are explicitly opt-in.
 - [x] Paginated owner-scoped delivery listing with status/destination filters (migration 007).
 - [x] Isolated integration/race tests, worker process failure tests and log-privacy checks.
 - [x] English institutional site, TLS, portfolio links and LinkedIn artwork.
-
 - [x] Durable per-client rate limit: 120 authenticated requests/minute, HTTP 429 (migration 010).
+- [x] Per-client capacity quotas, bounded open work and authenticated usage inspection.
 
 ## Remaining work, in order
 
-- [ ] Per-client quotas and bounds on pending work.
 - [ ] Operational metrics, alerts and reproducible failure/recovery demo.
 - [ ] Full isolated backup/restore drill, including signing master keys.
 - [ ] Coordinated history retention and ingestion-idempotency expiry policy.
@@ -94,7 +93,7 @@ Reviewed admission order, per-client row locking, clock sampling after lock
 acquisition, transaction failure behavior, Retry-After, counter persistence and
 migration 010. No blocking issue found in the inspected scope. Fixed-window
 bursts, database admission cost, and missing pre-authentication protection are
-explicit limitations; quotas and pending-work bounds remain open.
+explicit limitations; quotas and pending-work bounds were still open at that milestone.
 
 `make test-integration` passed with race detection, vet and PostgreSQL log privacy.
 After adding the two-token/two-handler HTTP ingestion check, the HTTP package was
@@ -102,3 +101,19 @@ rerun with race detection and `go vet ./...` passed again. Duplicate requests
 retained one delivery while consuming the shared allowance. All databases were
 disposable and the test stack was removed; no running private API/database was
 upgraded. Worker process checks were not repeated because dispatch is unchanged.
+
+### Per-client capacity quotas — 2026-09-14
+
+Reviewed client-before-delivery lock ordering, all open states (including delayed
+retries and expired leases), provisional-event counting, idempotent receipt
+precedence, rollback, owner-scoped usage and structured 409 responses. No blocking
+issue found in the inspected scope. These are application-enforced record limits,
+not a disk quota; retention, key/token history bounds and mixed-version writer
+rollout remain explicitly documented limitations.
+
+`make test-integration` passed after correcting a UUID cast in a synthetic fixture.
+The final suite includes race detection, vet and PostgreSQL log privacy, concurrent
+destination/event admission, ingestion versus replay for the last open slot, and
+real worker transaction completion releasing capacity without counter hooks.
+Existing worker recovery tests also passed. Disposable databases/containers were
+removed. No new migration, development-data change or deployment was required.

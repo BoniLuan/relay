@@ -154,9 +154,21 @@ commits never invoke the endpoint; 401 and health requests do not consume capaci
 legacy credentials survive migration. Fixed-window boundary bursts and the lack
 of pre-authentication flood protection are explicit limitations.
 
-## 3f — Operation and demonstration (planned)
+## 3f — Per-client capacity quotas (implemented)
 
-Add quotas, metrics, backup/restore and a reproducible failure demo.
+Fixed limits of 20 destinations, 1,000 retained events and 100 open deliveries.
+Client-row admission locks serialize ingestion and replay without adding worker
+counters. Authenticated usage exposes one owner-scoped snapshot. See
+[capacity quotas](QUOTAS.md); schema 010 already provides the necessary indexes.
+
+Acceptance: concurrent admissions never overfill the final slot; retries and live
+leases remain counted; terminal work releases open capacity but retains events;
+duplicate receipts remain available at capacity; quota or commit failure retains
+no partial event or replay authorization; other clients remain independent.
+
+## 3g — Operation and demonstration (planned)
+
+Add metrics, backup/restore and a reproducible failure demo.
 
 Acceptance: replay authorization and limits are tested; secrets/payloads are absent
 from logs; a backup restores into an isolated database; the demo explains duplicate

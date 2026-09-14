@@ -68,9 +68,31 @@ type Destination struct {
 }
 
 func (s *Store) CreateDestination(ctx context.Context, client, url string) (Destination, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Destination{}, err
+	}
+	defer rollback(tx)
+	if err = lockQuotaClient(ctx, tx, client); err != nil {
+		return Destination{}, err
+	}
+	var full bool
+	err = tx.QueryRow(ctx, `SELECT count(*) >= $2 FROM (SELECT 1 FROM destinations WHERE client_id=$1 LIMIT $2) owned`, client, MaxClientDestinations).Scan(&full)
+	if err != nil {
+		return Destination{}, err
+	}
+	if full {
+		return Destination{}, &QuotaError{Resource: "destinations", Limit: MaxClientDestinations}
+	}
 	d := Destination{ID: NewID(), URL: url}
-	err := s.pool.QueryRow(ctx, "INSERT INTO destinations (id,client_id,url) VALUES ($1,$2,$3) RETURNING created_at", d.ID, client, url).Scan(&d.CreatedAt)
-	return d, err
+	err = tx.QueryRow(ctx, "INSERT INTO destinations (id,client_id,url) VALUES ($1,$2,$3) RETURNING created_at", d.ID, client, url).Scan(&d.CreatedAt)
+	if err != nil {
+		return Destination{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return Destination{}, err
+	}
+	return d, nil
 }
 
 type Event struct {
@@ -81,7 +103,7 @@ type Event struct {
 }
 
 // Ingest atomically persists an event and its future delivery. A unique constraint
-// serializes racing submissions; READ COMMITTED lets the following SELECT see
+// backs up the client admission lock; READ COMMITTED lets the following SELECT see
 // the winner after ON CONFLICT waits for that transaction to finish.
 func (s *Store) Ingest(ctx context.Context, client, destination, key string, hash [32]byte, payload []byte) (Event, bool, error) {
 	tx, err := s.pool.Begin(ctx)
@@ -89,6 +111,9 @@ func (s *Store) Ingest(ctx context.Context, client, destination, key string, has
 		return Event{}, false, err
 	}
 	defer rollback(tx)
+	if err = lockQuotaClient(ctx, tx, client); err != nil {
+		return Event{}, false, err
+	}
 	var owned bool
 	err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM destinations WHERE id=$1 AND client_id=$2)", destination, client).Scan(&owned)
 	if err != nil {
@@ -123,6 +148,19 @@ func (s *Store) Ingest(ctx context.Context, client, destination, key string, has
 	} else if err != nil {
 		return Event{}, false, err
 	} else {
+		// Count the provisional event too. A rejection rolls back its insertion;
+		// duplicate receipts bypass quotas because they add no retained work.
+		var full bool
+		err = tx.QueryRow(ctx, `SELECT count(*) > $2 FROM (SELECT 1 FROM events WHERE client_id=$1 LIMIT $3) retained`, client, MaxClientEvents, MaxClientEvents+1).Scan(&full)
+		if err != nil {
+			return Event{}, false, err
+		}
+		if full {
+			return Event{}, false, &QuotaError{Resource: "events", Limit: MaxClientEvents}
+		}
+		if err = checkOpenQuota(ctx, tx, client); err != nil {
+			return Event{}, false, err
+		}
 		_, err = tx.Exec(ctx, "INSERT INTO deliveries (event_id) VALUES ($1)", e.ID)
 		if err != nil {
 			return Event{}, false, err

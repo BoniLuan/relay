@@ -138,3 +138,7 @@ operation remain separate milestones; this feature is not public-production read
 
 Validation on 2026-09-14: `make test-integration` and `make test-worker-process`
 passed. All temporary databases and worker containers were removed afterward.
+
+New replay grants also require a free client open-delivery slot. Existing replay
+receipts bypass the capacity check, preserving retry safety at full capacity.
+The client admission lock precedes the delivery lock; see [QUOTAS.md](QUOTAS.md).

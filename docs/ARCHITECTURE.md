@@ -137,3 +137,9 @@ before endpoint work. Migration 010 stores one reusable fixed-minute row; a shor
 row-locked transaction enforces the shared budget across API processes. This
 transaction is separate from event persistence and never acknowledges an event.
 See [rate-limit behavior and tradeoffs](RATE_LIMIT.md).
+
+Capacity admission uses a separate client-row lock inside the destination, event
+or replay transaction, before delivery locks. Counts use persisted rows instead
+of denormalized worker counters: every open-to-open transition keeps its slot,
+and a committed terminal outcome frees it. Retained events still count. See
+[capacity limits and usage](QUOTAS.md) for bounds and rollout requirements.

@@ -29,6 +29,10 @@ func (f *fakeBackend) TakeRequest(context.Context, string) (int, error) {
 	return f.retryAfter, f.limitErr
 }
 
+func (f *fakeBackend) ClientUsage(context.Context, string) (storage.ClientUsage, error) {
+	return storage.ClientUsage{}, f.err
+}
+
 func (f *fakeBackend) Ready(context.Context) error { return f.err }
 func (f *fakeBackend) Authenticate(context.Context, string) (string, error) {
 	return "client", f.authErr

@@ -52,8 +52,9 @@ API remains private. Edge admission/concurrency controls are future public-deplo
 work; no shared Nginx configuration is changed here.
 
 This is not an event quota, pending-delivery cap, storage-retention policy, or
-worker dispatch limit. A client can still accumulate work at the permitted rate.
-Those bounds remain separate milestones. Each authenticated request adds database
+worker dispatch limit. The rate limiter alone does not bound accumulated work.
+Capacity quotas are implemented separately; see [QUOTAS.md](QUOTAS.md).
+Retention remains a separate milestone. Each authenticated request adds database
 round trips and row contention; measure these before raising the limit or adding
 infrastructure. No Redis, cleanup job, new port, volume or service is introduced.
 

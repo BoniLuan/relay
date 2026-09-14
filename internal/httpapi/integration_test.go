@@ -228,5 +228,6 @@ func TestPostgresHTTP(t *testing.T) {
 	}
 	request("GET", historyPath, "", "", recoveredToken, 200)
 	t.Run("durable rate limit across rotated tokens", func(t *testing.T) { testHTTPRateLimit(t, ctx, db) })
+	t.Run("client quotas", func(t *testing.T) { testHTTPQuotas(t, ctx, db) })
 
 }

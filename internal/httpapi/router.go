@@ -23,6 +23,7 @@ import (
 
 // Backend is the small persistence boundary exercised by HTTP tests.
 type Backend interface {
+	ClientUsage(context.Context, string) (storage.ClientUsage, error)
 	TakeRequest(context.Context, string) (int, error)
 	ReplayDelivery(context.Context, string, string, string, [32]byte) (storage.ReplayReceipt, bool, error)
 	ListDeliveries(context.Context, string, storage.DeliveryFilter) ([]storage.DeliverySummary, bool, error)
@@ -66,6 +67,7 @@ func NewHandler(db Backend, logger *slog.Logger) http.Handler {
 	})
 	mux.HandleFunc("POST /api/v1/destinations", a.auth(a.destination))
 	mux.HandleFunc("POST /api/v1/events", a.auth(a.ingest))
+	mux.HandleFunc("GET /api/v1/usage", a.auth(a.usage))
 	mux.HandleFunc("GET /api/v1/deliveries", a.auth(a.deliveries))
 	mux.HandleFunc("POST /api/v1/events/{id}/replay", a.auth(a.replay))
 	mux.HandleFunc("GET /api/v1/events/{id}", a.auth(a.event))
@@ -232,7 +234,20 @@ func (a api) event(w http.ResponseWriter, r *http.Request, client string) {
 	}
 	respond(w, 200, e)
 }
+func (a api) usage(w http.ResponseWriter, r *http.Request, client string) {
+	usage, err := a.db.ClientUsage(r.Context(), client)
+	if err != nil {
+		a.failure(w, r, err)
+		return
+	}
+	respond(w, 200, usage)
+}
 func (a api) failure(w http.ResponseWriter, r *http.Request, err error) {
+	var quota *storage.QuotaError
+	if errors.As(err, &quota) {
+		respond(w, 409, map[string]any{"error": "client quota exceeded", "code": "quota_exceeded", "resource": quota.Resource, "limit": quota.Limit})
+		return
+	}
 	switch {
 	case errors.Is(err, storage.ErrReplayState):
 		problem(w, 409, "only terminal failed deliveries with no prior replay are eligible")
