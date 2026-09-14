@@ -22,6 +22,9 @@ The English [project site](https://relay.boniluan.com) presents the implementati
 and illustrative delivery flows. It exposes no backend API; see the
 [site deployment guide](docs/SITE.md).
 
+See [implementation status](docs/STATUS.md) for the completed/pending checklist
+and [roadmap](docs/ROADMAP.md) for milestone acceptance criteria.
+
 ## Run locally with Docker Compose
 
 Read `/home/luan/projects/INFRASTRUCTURE.md` on the shared VPS first. Relay uses

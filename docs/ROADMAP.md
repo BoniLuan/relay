@@ -1,5 +1,8 @@
 # Roadmap
 
+Use [STATUS.md](STATUS.md) as the completed/pending checklist. This document
+records milestone scope and acceptance criteria.
+
 ## 0 — Scaffold (implemented)
 
 Standard-library HTTP server, JSON process logs, graceful termination, health
