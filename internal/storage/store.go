@@ -4,8 +4,6 @@ package storage
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -61,31 +59,6 @@ func NewID() string {
 	b[6] = (b[6] & 0x0f) | 0x40
 	b[8] = (b[8] & 0x3f) | 0x80
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
-}
-
-// ProvisionClient returns a bearer token once. Only its SHA-256 digest is stored.
-func (s *Store) ProvisionClient(ctx context.Context, name string) (string, string, error) {
-	if len(name) < 1 || len(name) > 100 {
-		return "", "", errors.New("client name must be 1-100 bytes")
-	}
-	var secret [32]byte
-	if _, err := rand.Read(secret[:]); err != nil {
-		return "", "", err
-	}
-	token := "relay_" + hex.EncodeToString(secret[:])
-	hash := sha256.Sum256([]byte(token))
-	id := NewID()
-	_, err := s.pool.Exec(ctx, "INSERT INTO clients (id, name, token_hash) VALUES ($1,$2,$3)", id, name, hash[:])
-	return id, token, err
-}
-func (s *Store) Authenticate(ctx context.Context, token string) (string, error) {
-	hash := sha256.Sum256([]byte(token))
-	var id string
-	err := s.pool.QueryRow(ctx, "SELECT id::text FROM clients WHERE token_hash=$1", hash[:]).Scan(&id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", ErrUnauthorized
-	}
-	return id, err
 }
 
 type Destination struct {

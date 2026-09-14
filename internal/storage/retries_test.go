@@ -241,7 +241,7 @@ func TestV4UpgradePreservesTerminalHistoryAndBudget(t *testing.T) {
 	if _, err := s.pool.Exec(ctx, "CREATE TABLE schema_migrations(version integer PRIMARY KEY); INSERT INTO schema_migrations VALUES(1),(2),(3),(4)"); err != nil {
 		t.Fatal(err)
 	}
-	client, _, err := s.ProvisionClient(ctx, "legacy retries")
+	client, _, err := provisionLegacyClient(ctx, s, "legacy retries")
 	if err != nil {
 		t.Fatal(err)
 	}

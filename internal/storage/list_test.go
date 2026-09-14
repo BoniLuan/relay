@@ -118,7 +118,7 @@ func TestListingMigrationPreservesVersionSixData(t *testing.T) {
 	if _, err := s.pool.Exec(ctx, "CREATE TABLE schema_migrations(version integer PRIMARY KEY); INSERT INTO schema_migrations VALUES(1),(2),(3),(4),(5),(6)"); err != nil {
 		t.Fatal(err)
 	}
-	owner, _, err := s.ProvisionClient(ctx, "migration list owner")
+	owner, _, err := provisionLegacyClient(ctx, s, "migration list owner")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -64,6 +64,8 @@ func run(logger *slog.Logger) error {
 		}
 		logger.Info("migrations applied")
 		return nil
+	case "issue-client-token", "list-client-tokens", "revoke-client-token":
+		return runTokenCommand(ctx, db, os.Args[1:], os.Stdout)
 	case "create-client":
 		if len(os.Args) != 3 {
 			return errors.New("usage: relay create-client NAME")
@@ -75,7 +77,9 @@ func run(logger *slog.Logger) error {
 			return errors.New("client creation failed")
 		}
 		// Explicit administrative output; never include the token in application logs.
-		fmt.Printf("client_id=%s\ntoken=%s\n", id, token)
+		if _, err := fmt.Printf("client_id=%s\ntoken_id=%s\ntoken=%s\n", id, id, token); err != nil {
+			return errors.New("client output failed; inspect administrative client records before retrying")
+		}
 		return nil
 	case "register-keyring":
 		keyring, err := secrets.LoadFile(os.Getenv("RELAY_KEYRING_FILE"))
@@ -134,7 +138,7 @@ func run(logger *slog.Logger) error {
 		}
 
 	default:
-		return errors.New("usage: relay [api|worker|migrate|create-client NAME|keyring-init PATH|register-keyring]")
+		return errors.New("usage: relay [api|worker|migrate|create-client NAME|issue-client-token CLIENT_ID|list-client-tokens CLIENT_ID|revoke-client-token CLIENT_ID TOKEN_ID|keyring-init PATH|register-keyring]")
 	}
 	addr := os.Getenv("RELAY_HTTP_ADDR")
 	if addr == "" {

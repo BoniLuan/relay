@@ -49,7 +49,7 @@ func TestPostgresHTTP(t *testing.T) {
 	if err = db.RegisterKeyring(ctx); err != nil {
 		t.Fatal(err)
 	}
-	_, token, err := db.ProvisionClient(ctx, "http-test")
+	client, token, err := db.ProvisionClient(ctx, "http-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,4 +203,29 @@ func TestPostgresHTTP(t *testing.T) {
 	request("GET", "/api/v1/events/"+event.ID, "", "", token, 200)
 	request("GET", historyPath, "", "", token, 200)
 	request("POST", "/api/v1/events", body, key, token, 200)
+	// Rotation keeps identity/idempotency stable; revocation takes effect on the
+	// next authenticated request, including through an already running handler.
+	second, newToken, err := db.IssueClientToken(ctx, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request("GET", historyPath, "", "", newToken, 200)
+	request("GET", historyPath, "", "", token, 200)
+	request("POST", "/api/v1/events", body, key, newToken, 200)
+	if err = db.RevokeClientToken(ctx, client, client); err != nil {
+		t.Fatal(err)
+	}
+	request("GET", historyPath, "", "", token, 401)
+	request("GET", historyPath, "", "", newToken, 200)
+	request("GET", historyPath, "", "", otherToken, 404)
+	if err = db.RevokeClientToken(ctx, client, second.ID); err != nil {
+		t.Fatal(err)
+	}
+	request("GET", historyPath, "", "", newToken, 401)
+	_, recoveredToken, err := db.IssueClientToken(ctx, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request("GET", historyPath, "", "", recoveredToken, 200)
+
 }

@@ -129,10 +129,22 @@ commits grant nothing; current keys and outbound policy apply; old leases cannot
 finish replay work; failures/crashes stop at the persisted limit; original data
 survives migration and ingestion idempotency remains intact.
 
-## 3d — Operation and demonstration (planned)
+## 3d — Administrative client token lifecycle (implemented)
 
-Add token
-rotation/revocation, quotas, metrics, backup/restore and a reproducible failure demo.
+Migration 009 preserves existing bearer hashes in `client_tokens`. Administrative
+issue/list/revoke commands support a two-active-token cutover window, idempotent
+revocation and recovery after all credentials are revoked. Client identity stays
+stable. See [token lifecycle](CLIENT_TOKENS.md).
+
+Acceptance: old tokens survive migration; both cutover tokens authenticate as the
+same client; concurrent issuance cannot exceed two; revoked tokens fail new HTTP
+authentication; failed commits expose no credentials or partial revocation;
+metadata excludes hashes/plaintext and stays bounded; recovery works without an
+old bearer; worker jobs and ingestion idempotency are unaffected.
+
+## 3e — Operation and demonstration (planned)
+
+Add quotas, metrics, backup/restore and a reproducible failure demo.
 
 Acceptance: replay authorization and limits are tested; secrets/payloads are absent
 from logs; a backup restores into an isolated database; the demo explains duplicate

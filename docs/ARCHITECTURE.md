@@ -4,7 +4,7 @@
 
 ```text
 client -- bearer token --> HTTP API --> PostgreSQL
-                                      clients (token hash)
+                                      clients + client_tokens (hashed, revocable credentials)
                                       destinations (client-owned)
                                       events + deliveries (one transaction)
 ```
@@ -18,8 +18,11 @@ Its small `Backend` interface permits failure-path HTTP tests. `internal/storage
 contains parameterized SQL using pgx's bounded connection pool. This is a concrete
 storage implementation, without generic repository or service layers.
 
-Each client has a random bearer token stored only as a SHA-256 digest. The
-administrative CLI displays the raw token once. Each destination belongs to one
+Each client has up to two active random bearer tokens, stored only as SHA-256
+digests in `client_tokens`. The [administrative lifecycle](CLIENT_TOKENS.md) uses
+client row locks and unique active slots to support rotation and revocation. The
+CLI displays plaintext once, after commit; every HTTP authentication checks the
+unrevoked database record without a cache. Each destination belongs to one
 client; an event's composite foreign key enforces the same ownership in SQL.
 Destination URLs are immutable. Signing credentials have a separate versioned
 [lifecycle](SIGNING_SECRETS.md) and are stored only as AES-GCM ciphertext.

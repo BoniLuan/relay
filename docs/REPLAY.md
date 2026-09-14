@@ -118,7 +118,7 @@ Migration 008 introduces the audit table, a per-delivery limit (default three),
 and a maximum of six historical attempt numbers. It does not requeue existing
 terminal rows. Stop all old API and worker processes before migrating and deploy
 the updated binary consistently: older workers assume a fixed three-start budget.
-Run `make migrate` explicitly; readiness now requires schema 8. Start the API
+Run `make migrate` explicitly; current readiness requires schema 9. Start the API
 with `make up`; start sending only when intended with `make worker-start` or
 `make deliver-once`. No development/production migration is run by tests.
 
@@ -132,7 +132,8 @@ signed TLS delivery, receiver deduplication and safe history/logging.
 
 Study `internal/storage/replay.go` for the transaction, `attempts.go` for the
 budget-aware worker changes, and `internal/delivery/replay_integration_test.go`
-for the full flow. General quotas, token lifecycle, retention and public API
+for the full flow. [Administrative token lifecycle](CLIENT_TOKENS.md) is now implemented. General
+quotas, retention and public API
 operation remain separate milestones; this feature is not public-production readiness.
 
 Validation on 2026-09-14: `make test-integration` and `make test-worker-process`

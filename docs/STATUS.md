@@ -10,6 +10,7 @@ private and workers are explicitly opt-in.
 - [x] Go HTTP server, health/readiness, bounded requests, structured logs, graceful shutdown.
 - [x] Isolated Docker Compose development/test databases and explicit PostgreSQL migrations.
 - [x] Administrative client provisioning, hashed bearer tokens, destination ownership.
+- [x] Administrative token rotation/revocation, two-active-token cutover and recovery (migration 009).
 - [x] Atomic event/delivery ingestion, commit-before-ack, client-scoped byte-exact idempotency.
 - [x] Authenticated event lookup without payload disclosure.
 - [x] Encrypted signing secrets with staging, activation, rotation and revocation.
@@ -25,7 +26,6 @@ private and workers are explicitly opt-in.
 
 ## Remaining work, in order
 
-- [ ] Client bearer-token rotation and revocation.
 - [ ] Rate limits, per-client quotas and bounds on pending work.
 - [ ] Operational metrics, alerts and reproducible failure/recovery demo.
 - [ ] Full isolated backup/restore drill, including signing master keys.
@@ -72,3 +72,16 @@ privacy, including a local TLS replay with key rotation and receiver deduplicati
 Real process checks passed for live-claim exclusion, SIGKILL recovery, SIGTERM
 cleanup, destination cooldown and temporary test-database outage recovery. The
 test stack was removed. Migration 008 was applied only to disposable databases.
+
+### Administrative client tokens — 2026-09-14
+
+Reviewed credential disclosure after commit, owner-bound revocation, per-client
+locking, database enforcement of two active slots, legacy credential migration,
+metadata bounds and sanitized CLI errors. No blocking issue found in the inspected
+scope. Revocation does not cancel already-authenticated requests or worker jobs;
+uncertain commit responses require metadata inspection or idempotent revocation.
+
+`make test-integration` passed with race detection, vet and PostgreSQL log privacy.
+`make test-worker-process` passed for the real token CLI and worker crash, shutdown
+and database-outage recovery. Migration 009 ran only on disposable databases; the
+test stack was removed. The private running API/database was not upgraded.

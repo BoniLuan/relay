@@ -35,8 +35,26 @@ start_worker() {
 }
 docker compose -f compose.test.yaml up -d --wait relay-test-db
 docker run --rm --network relay-test_default -e RELAY_DATABASE_URL="$lease_test_url" "$lease_test_image" migrate
+# Exercise the real administrative binary. Discard plaintext immediately and
+# disable Docker logging; keep only non-secret IDs for verification.
+token_test_client=$(docker run --rm --log-driver none --network relay-test_default -e RELAY_DATABASE_URL="$lease_test_url" "$lease_test_image" create-client token-process-test | awk -F= '$1=="client_id" {print $2}')
+[ -n "$token_test_client" ]
+token_test_second=$(docker run --rm --log-driver none --network relay-test_default -e RELAY_DATABASE_URL="$lease_test_url" "$lease_test_image" issue-client-token "$token_test_client" | awk -F= '$1=="token_id" {print $2}')
+[ -n "$token_test_second" ]
+if docker run --rm --log-driver none --network relay-test_default -e RELAY_DATABASE_URL="$lease_test_url" "$lease_test_image" issue-client-token "$token_test_client" >/dev/null 2>&1; then
+ echo 'Token command exceeded two active tokens' >&2; exit 1
+fi
+[ "$(sql "SELECT count(*)=2 FROM client_tokens WHERE client_id='$token_test_client' AND revoked_at IS NULL")" = t ]
+for token_test_id in "$token_test_client" "$token_test_second"; do
+ docker run --rm --log-driver none --network relay-test_default -e RELAY_DATABASE_URL="$lease_test_url" "$lease_test_image" revoke-client-token "$token_test_client" "$token_test_id" >/dev/null
+done
+docker run --rm --log-driver none --network relay-test_default -e RELAY_DATABASE_URL="$lease_test_url" "$lease_test_image" list-client-tokens "$token_test_client" | python3 -c 'import json,sys; rows=json.load(sys.stdin); assert len(rows)==2 and all(r["state"]=="revoked" for r in rows)'
+docker run --rm --log-driver none --network relay-test_default -e RELAY_DATABASE_URL="$lease_test_url" "$lease_test_image" issue-client-token "$token_test_client" >/dev/null
+[ "$(sql "SELECT count(*)=1 FROM client_tokens WHERE client_id='$token_test_client' AND revoked_at IS NULL")" = t ]
+echo 'Token CLI: issuance, overlap limit, revocation, metadata and recovery passed'
+
 # Synthetic fixtures, never production data. No valid bearer/signing key is needed.
-sql "INSERT INTO clients(id,name,token_hash) VALUES('00000000-0000-4000-8000-000000000001','lease process test',decode(repeat('11',32),'hex'));
+sql "INSERT INTO clients(id,name) VALUES('00000000-0000-4000-8000-000000000001','lease process test');
  INSERT INTO destinations(id,client_id,url) VALUES('00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000001','https://example.com');
  INSERT INTO events(id,client_id,destination_id,idempotency_key,request_hash,payload) VALUES('00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000002','process-test',decode(repeat('22',32),'hex'),'{}');
  INSERT INTO deliveries(event_id) VALUES('00000000-0000-4000-8000-000000000003');" >/dev/null

@@ -133,3 +133,11 @@ The API currently exposes neither the cooldown deadline nor an early-resume acti
 The [per-event history endpoint](DELIVERY_HISTORY.md) returns safe attempt metadata
 and scheduling in one consistent database snapshot. It never sends or replays an
 event. The existing event lookup and idempotent ingestion responses are unchanged.
+
+## Client bearer-token lifecycle
+
+[Administrative commands](CLIENT_TOKENS.md) issue replacement credentials, inspect
+bounded metadata and revoke tokens. There is no HTTP token-management endpoint.
+Unknown and revoked tokens both return 401. Rotation preserves client ownership
+and ingestion idempotency; revocation blocks future authentication but does not
+cancel already authorized requests or outbound deliveries.
