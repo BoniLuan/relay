@@ -17,7 +17,7 @@ cp .env.example .env
 chmod 600 .env
 make keyring             # Creates .local/keyring.json, mode 0600; never overwrites
 make db
-make migrate             # Explicit migration to current schema (version 9)
+make migrate             # Explicit migration to current schema (version 10)
 make register-keyring    # Explicit registration/verification of master keys
 make client NAME=local
 make up

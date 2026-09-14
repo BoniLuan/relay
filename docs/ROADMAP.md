@@ -142,7 +142,19 @@ authentication; failed commits expose no credentials or partial revocation;
 metadata excludes hashes/plaintext and stays bounded; recovery works without an
 old bearer; worker jobs and ingestion idempotency are unaffected.
 
-## 3e — Operation and demonstration (planned)
+## 3e — Authenticated request rate limit (implemented)
+
+Migration 010, one durable fixed-minute counter per client across all tokens and
+API processes. Admit at most 120 requests per UTC minute before endpoint work;
+excess returns 429 with Retry-After. See [rate-limit semantics](RATE_LIMIT.md).
+
+Acceptance: concurrent pools cannot exceed the window budget; reconnecting does
+not reset it; old windows reset; clients remain independent; failed admission
+commits never invoke the endpoint; 401 and health requests do not consume capacity;
+legacy credentials survive migration. Fixed-window boundary bursts and the lack
+of pre-authentication flood protection are explicit limitations.
+
+## 3f — Operation and demonstration (planned)
 
 Add quotas, metrics, backup/restore and a reproducible failure demo.
 

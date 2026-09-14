@@ -90,7 +90,7 @@ before decoding; unknown cursor fields and trailing JSON are rejected.
 Migration 007 adds `(client_id, created_at DESC, id DESC)` and
 `(client_id, destination_id, created_at DESC, id DESC)` event indexes. Existing
 delivery data, retries, idempotency and attempt histories are unchanged. Run the
-explicit migration before running the new API; current readiness requires schema 9.
+explicit migration before running the new API; current readiness requires schema 10.
 Index creation is transactional and may block writes on the events table while
 building; use a maintenance window if applying it to a populated live database.
 No shared database or production data is used by the test suite.

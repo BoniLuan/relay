@@ -141,3 +141,11 @@ bounded metadata and revoke tokens. There is no HTTP token-management endpoint.
 Unknown and revoked tokens both return 401. Rotation preserves client ownership
 and ingestion idempotency; revocation blocks future authentication but does not
 cancel already authorized requests or outbound deliveries.
+
+## Request rate limit
+
+All authenticated routes share 120 requests per UTC minute per client, including
+both active tokens and idempotent retries. Excess returns 429 with integer-seconds
+`Retry-After` and no endpoint execution. Authentication failure remains 401;
+admission storage failure returns 503. See [RATE_LIMIT.md](RATE_LIMIT.md) for
+fixed-window bursts, retry semantics and remaining public-deployment protections.

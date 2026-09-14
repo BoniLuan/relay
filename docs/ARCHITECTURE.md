@@ -131,3 +131,9 @@ Release uses event ID plus owner/token and an unexpired deadline, rejecting stal
 processes after recovery. The one-claim CLI is opt-in and needs no signing keyring.
 Signed-attempt completion uses the same ownership condition. Future retry/replay
 updates must preserve it as well.
+
+Authenticated HTTP requests pass through a durable per-client admission counter
+before endpoint work. Migration 010 stores one reusable fixed-minute row; a short
+row-locked transaction enforces the shared budget across API processes. This
+transaction is separate from event persistence and never acknowledges an event.
+See [rate-limit behavior and tradeoffs](RATE_LIMIT.md).

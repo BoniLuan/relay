@@ -15,10 +15,18 @@ import (
 )
 
 type fakeBackend struct {
-	err       error
-	authErr   error
-	duplicate bool
-	calls     int
+	limitErr   error
+	retryAfter int
+	limitCalls int
+	err        error
+	authErr    error
+	duplicate  bool
+	calls      int
+}
+
+func (f *fakeBackend) TakeRequest(context.Context, string) (int, error) {
+	f.limitCalls++
+	return f.retryAfter, f.limitErr
 }
 
 func (f *fakeBackend) Ready(context.Context) error { return f.err }

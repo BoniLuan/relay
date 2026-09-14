@@ -24,9 +24,11 @@ private and workers are explicitly opt-in.
 - [x] Isolated integration/race tests, worker process failure tests and log-privacy checks.
 - [x] English institutional site, TLS, portfolio links and LinkedIn artwork.
 
+- [x] Durable per-client rate limit: 120 authenticated requests/minute, HTTP 429 (migration 010).
+
 ## Remaining work, in order
 
-- [ ] Rate limits, per-client quotas and bounds on pending work.
+- [ ] Per-client quotas and bounds on pending work.
 - [ ] Operational metrics, alerts and reproducible failure/recovery demo.
 - [ ] Full isolated backup/restore drill, including signing master keys.
 - [ ] Coordinated history retention and ingestion-idempotency expiry policy.
@@ -85,3 +87,18 @@ uncertain commit responses require metadata inspection or idempotent revocation.
 `make test-worker-process` passed for the real token CLI and worker crash, shutdown
 and database-outage recovery. Migration 009 ran only on disposable databases; the
 test stack was removed. The private running API/database was not upgraded.
+
+### Authenticated request rate limit — 2026-09-14
+
+Reviewed admission order, per-client row locking, clock sampling after lock
+acquisition, transaction failure behavior, Retry-After, counter persistence and
+migration 010. No blocking issue found in the inspected scope. Fixed-window
+bursts, database admission cost, and missing pre-authentication protection are
+explicit limitations; quotas and pending-work bounds remain open.
+
+`make test-integration` passed with race detection, vet and PostgreSQL log privacy.
+After adding the two-token/two-handler HTTP ingestion check, the HTTP package was
+rerun with race detection and `go vet ./...` passed again. Duplicate requests
+retained one delivery while consuming the shared allowance. All databases were
+disposable and the test stack was removed; no running private API/database was
+upgraded. Worker process checks were not repeated because dispatch is unchanged.

@@ -118,7 +118,7 @@ Migration 008 introduces the audit table, a per-delivery limit (default three),
 and a maximum of six historical attempt numbers. It does not requeue existing
 terminal rows. Stop all old API and worker processes before migrating and deploy
 the updated binary consistently: older workers assume a fixed three-start budget.
-Run `make migrate` explicitly; current readiness requires schema 9. Start the API
+Run `make migrate` explicitly; current readiness requires schema 10. Start the API
 with `make up`; start sending only when intended with `make worker-start` or
 `make deliver-once`. No development/production migration is run by tests.
 

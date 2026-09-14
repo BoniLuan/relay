@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -22,6 +23,7 @@ import (
 
 // Backend is the small persistence boundary exercised by HTTP tests.
 type Backend interface {
+	TakeRequest(context.Context, string) (int, error)
 	ReplayDelivery(context.Context, string, string, string, [32]byte) (storage.ReplayReceipt, bool, error)
 	ListDeliveries(context.Context, string, storage.DeliveryFilter) ([]storage.DeliverySummary, bool, error)
 	GetDeliveryHistory(context.Context, string, string) (storage.DeliveryHistory, error)
@@ -97,6 +99,16 @@ func (a api) auth(next func(http.ResponseWriter, *http.Request, string)) http.Ha
 		}
 		if err != nil {
 			a.failure(w, r, err)
+			return
+		}
+		retryAfter, err := a.db.TakeRequest(ctx, client)
+		if err != nil {
+			a.failure(w, r, err)
+			return
+		}
+		if retryAfter > 0 {
+			w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+			problem(w, http.StatusTooManyRequests, "client request limit exceeded; wait and retry with the same idempotency key and body when applicable")
 			return
 		}
 		next(w, r, client)
