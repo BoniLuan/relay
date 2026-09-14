@@ -82,7 +82,8 @@ Exactly-once is not promised. Stable
 event IDs permit receiver deduplication. A [continuous worker](CONTINUOUS_WORKER.md) now processes due work sequentially
 with bounded polling and destination cooldown. [Owner-scoped per-event history](DELIVERY_HISTORY.md) uses one SQL statement to
 read scheduling and ordered attempts consistently, without row locks or keyring
-access. A cross-event list, controlled replay and metrics remain planned.
+access. [Cross-event listing](DELIVERY_LIST.md) uses owner-filtered keyset pages and
+explicit event indexes (migration 007). Controlled replay and metrics remain planned.
 
 ## Deployment boundaries
 

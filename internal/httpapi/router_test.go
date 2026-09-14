@@ -133,3 +133,8 @@ func (f *fakeBackend) GetDeliveryHistory(context.Context, string, string) (stora
 	f.calls++
 	return storage.DeliveryHistory{Attempts: []storage.AttemptMetadata{}}, f.err
 }
+
+func (f *fakeBackend) ListDeliveries(context.Context, string, storage.DeliveryFilter) ([]storage.DeliverySummary, bool, error) {
+	f.calls++
+	return []storage.DeliverySummary{}, false, f.err
+}

@@ -15,7 +15,9 @@ available through `make worker` and [queue leases](docs/QUEUE_LEASES.md).
 bounded polling, shutdown and destination cooldown. Start it with `make worker-start`.
 **Implemented:** [owner-scoped per-event attempt history](docs/DELIVERY_HISTORY.md),
 including safe outcomes and retry schedules.
-**Not implemented:** paginated delivery listing, replay, client-token lifecycle
+**Implemented:** [paginated owner-scoped delivery listing](docs/DELIVERY_LIST.md)
+with status/destination filters and bounded keyset pages.
+**Not implemented:** replay, client-token lifecycle
 management or public API deployment.
 
 The English [project site](https://relay.boniluan.com) presents the implementation
@@ -47,7 +49,7 @@ curl --fail http://127.0.0.1:18081/readyz
 
 `make migrate` builds the application and runs the migration explicitly. Repeating
 it is safe. The API verifies the registered keyring before listening and never
-applies migrations. Readiness checks PostgreSQL, schema version 6 and the loaded
+applies migrations. Readiness checks PostgreSQL, schema version 7 and the loaded
 keyring; `/livez` checks only the HTTP process.
 `make client` is a local administrative operation with database access, not a
 public registration route. Tokens have 256 random bits; only SHA-256 hashes are

@@ -104,9 +104,21 @@ unattempted events return an empty array; in-flight and unknown results remain
 explicit; private fields are absent; reads do not wait on finalization row locks
 or expose uncommitted changes; pool restart preserves history; errors fail closed.
 
-## 3b — Operation and demonstration (planned)
+## 3b — Paginated owner-scoped delivery listing (implemented)
 
-Add a paginated owner-scoped delivery list, controlled failed-delivery replay, token
+Authenticated `GET /api/v1/deliveries`, keyset cursor, default 20 / maximum 100
+results, status/destination filters and owner page indexes (migration 007).
+See [listing contract](DELIVERY_LIST.md). Page snapshots are independent;
+concurrent status changes can alter filter membership.
+
+Acceptance: no cross-client data access; tied timestamps traverse deterministically;
+newer insertions do not shift subsequent pages; cursors preserve client/filter
+context; malformed input fails closed; old data survives migration; private
+fields are absent; reads never claim or replay work.
+
+## 3c — Operation and demonstration (planned)
+
+Add controlled failed-delivery replay, token
 rotation/revocation, quotas, metrics, backup/restore and a reproducible failure demo.
 
 Acceptance: replay authorization and limits are tested; secrets/payloads are absent

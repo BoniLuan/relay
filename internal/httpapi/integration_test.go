@@ -146,6 +146,45 @@ func TestPostgresHTTP(t *testing.T) {
 	if err = json.Unmarshal(request("GET", historyPath, "", "", token, 200), &history); err != nil || history.EventID != event.ID || history.Status != "pending" || history.Attempts == nil || len(history.Attempts) != 0 || history.MaxAttempts != 3 {
 		t.Fatalf("unexpected owner history: %+v, %v", history, err)
 	}
+	// Traverse real HTTP cursors against PostgreSQL, preserving owner filtering.
+	var baseline deliveryPage
+	if err = json.Unmarshal(request("GET", "/api/v1/deliveries?limit=100", "", "", token, 200), &baseline); err != nil || len(baseline.Items) < 3 {
+		t.Fatal("missing owner deliveries")
+	}
+	var cursor *string
+	seen := map[string]bool{}
+	for pageNumber := 0; pageNumber < 100; pageNumber++ {
+		path := "/api/v1/deliveries?limit=2&status=pending&destination_id=" + d.ID
+		if cursor != nil {
+			path += "&cursor=" + *cursor
+		}
+		var page deliveryPage
+		if err = json.Unmarshal(request("GET", path, "", "", token, 200), &page); err != nil {
+			t.Fatal(err)
+		}
+		for _, item := range page.Items {
+			if seen[item.EventID] || item.DestinationID != d.ID {
+				t.Fatal("duplicate or foreign item")
+			}
+			seen[item.EventID] = true
+		}
+		if pageNumber == 0 && page.NextCursor != nil {
+			request("GET", "/api/v1/deliveries?status=pending&destination_id="+d.ID+"&cursor="+*page.NextCursor, "", "", otherToken, 400)
+			request("POST", "/api/v1/events", body, storage.NewID(), token, 201)
+		}
+		cursor = page.NextCursor
+		if cursor == nil {
+			break
+		}
+	}
+	if cursor != nil || len(seen) != len(baseline.Items) {
+		t.Fatal("pagination skipped or repeated events")
+	}
+	request("GET", "/api/v1/deliveries?destination_id="+d.ID, "", "", otherToken, 404)
+	var empty deliveryPage
+	if err = json.Unmarshal(request("GET", "/api/v1/deliveries", "", "", otherToken, 200), &empty); err != nil || len(empty.Items) != 0 || empty.Items == nil {
+		t.Fatal("owner isolation failed")
+	}
 	// Reopen the pool and HTTP server: acceptance must survive API restarts.
 	db.Close()
 	request("GET", "/readyz", "", "", token, 503)

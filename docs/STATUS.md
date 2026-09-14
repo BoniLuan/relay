@@ -18,12 +18,12 @@ private and workers are explicitly opt-in.
 - [x] Three-attempt persisted retry budget with jitter and stable receiver deduplication IDs.
 - [x] Opt-in continuous worker, bounded polling/error backoff, destination key cooldown.
 - [x] Owner-scoped per-event attempt history with consistent, safe metadata.
+- [x] Paginated owner-scoped delivery listing with status/destination filters (migration 007).
 - [x] Isolated integration/race tests, worker process failure tests and log-privacy checks.
 - [x] English institutional site, TLS, portfolio links and LinkedIn artwork.
 
 ## Remaining work, in order
 
-- [ ] Paginated owner-scoped delivery listing, with status/destination filters.
 - [ ] Controlled replay with eligibility, authorization, idempotency, limits and audit history.
 - [ ] Client bearer-token rotation and revocation.
 - [ ] Rate limits, per-client quotas and bounds on pending work.
@@ -46,3 +46,16 @@ and lifecycle/HTTP tests. No blocking correctness issue found in the inspected
 change. The full isolated integration suite with race detector, vet and PostgreSQL
 log-privacy check passed for that commit. This is a scoped code review, not an
 independent security audit. Cross-event browsing remains a separate milestone.
+
+### Delivery listing — 2026-09-14
+
+Reviewed owner predicates, parameterized SQL construction, UUID/timestamp cursor
+ordering, filter/client context validation, page limits, nullable metadata, and
+migration 007. No blocking issue found in the inspected change. The status filter
+uses current data, not a snapshot spanning pages; sparse matches may scan more
+rows than the response limit, bounded by the request deadline. These limitations
+are explicit in [DELIVERY_LIST.md](DELIVERY_LIST.md).
+
+The full isolated integration/race suite, vet, and PostgreSQL log-privacy check
+passed. The timestamp-tie pagination test was also rerun after removing its
+dependency on the current date. No development/production migration was executed.

@@ -22,6 +22,7 @@ import (
 
 // Backend is the small persistence boundary exercised by HTTP tests.
 type Backend interface {
+	ListDeliveries(context.Context, string, storage.DeliveryFilter) ([]storage.DeliverySummary, bool, error)
 	GetDeliveryHistory(context.Context, string, string) (storage.DeliveryHistory, error)
 	StageSigningSecret(context.Context, string, string) (storage.SigningSecret, delivery.Secret, error)
 	ListSigningSecrets(context.Context, string, string) ([]storage.SigningSecret, error)
@@ -62,6 +63,7 @@ func NewHandler(db Backend, logger *slog.Logger) http.Handler {
 	})
 	mux.HandleFunc("POST /api/v1/destinations", a.auth(a.destination))
 	mux.HandleFunc("POST /api/v1/events", a.auth(a.ingest))
+	mux.HandleFunc("GET /api/v1/deliveries", a.auth(a.deliveries))
 	mux.HandleFunc("GET /api/v1/events/{id}", a.auth(a.event))
 	mux.HandleFunc("GET /api/v1/events/{id}/attempts", a.auth(a.history))
 	mux.HandleFunc("POST /api/v1/destinations/{id}/signing-secrets", a.auth(a.stageSecret))

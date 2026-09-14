@@ -38,6 +38,7 @@ unset RELAY_TOKEN
 | `POST /api/v1/destinations` with `url` | 201 | `id`, `url`, `created_at` |
 | `POST /api/v1/events` with `destination_id`, `payload` | 201 new / 200 duplicate | `id`, `destination_id`, `status`, `created_at` |
 | `GET /api/v1/events/{id}` | 200 | Same event metadata; payload is not returned |
+| `GET /api/v1/deliveries` | 200 | Paginated owner-scoped summaries with status/destination filters; see [listing contract](DELIVERY_LIST.md) |
 | `GET /api/v1/events/{id}/attempts` | 200 | Owner-scoped delivery status, retry schedule, and up to three ordered attempt records; see [history contract](DELIVERY_HISTORY.md) |
 
 `payload` accepts JSON values representable by PostgreSQL 17 JSONB, including
