@@ -10,7 +10,7 @@ from pathlib import Path
 import yaml
 
 
-def integrate(base, relay):
+def integrate(base, relay, telegram=False):
     result = copy.deepcopy(base)
     jobs = result.setdefault("scrape_configs", [])
     if any(job.get("job_name") == "relay-metrics" for job in jobs):
@@ -19,6 +19,13 @@ def integrate(base, relay):
     rules = result.setdefault("rule_files", [])
     if "/etc/prometheus/relay/alerts.yml" not in rules:
         rules.append("/etc/prometheus/relay/alerts.yml")
+    if telegram:
+        alerting = result.setdefault("alerting", {})
+        managers = alerting.setdefault("alertmanagers", [])
+        target = "relay-alertmanager:9093"
+        if any(target in entry.get("targets", []) for manager in managers for entry in manager.get("static_configs", [])):
+            raise ValueError("Relay Alertmanager is already configured")
+        managers.append({"static_configs": [{"targets": [target]}], "timeout": "10s"})
     return result
 
 
@@ -26,13 +33,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--telegram", action="store_true", help="opt in to the private Relay Alertmanager")
     args = parser.parse_args()
     if args.source.resolve() == args.output.resolve():
         raise ValueError("source and output must differ")
     raw = args.source.read_bytes()
     base = yaml.safe_load(raw)
     fragment = Path(__file__).resolve().parents[1] / "deploy/monitoring/scrape.yml"
-    result = integrate(base, yaml.safe_load(fragment.read_text()))
+    result = integrate(base, yaml.safe_load(fragment.read_text()), telegram=args.telegram)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     # JSON is valid YAML; preserve settings rather than rewriting the shared file.
     with tempfile.NamedTemporaryFile(mode="w", dir=args.output.parent, delete=False) as temp:

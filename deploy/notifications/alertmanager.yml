@@ -1,0 +1,27 @@
+route:
+  receiver: discard
+  group_by: [alertname, severity]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - receiver: relay-telegram
+      matchers:
+        - 'service="relay"'
+        - 'job="relay-metrics"'
+        - 'severity=~"warning|critical"'
+        - 'alertname=~"RelayMetricsUnavailable|RelayMetricsTargetMissing|RelayOpenWorkAging|RelayExpiredLeases"'
+receivers:
+  - name: discard
+  - name: relay-telegram
+    telegram_configs:
+      - bot_token_file: /run/relay-telegram/bot_token
+        chat_id_file: /run/relay-telegram/chat_id
+        send_resolved: true
+        parse_mode: ''
+        message: |-
+          Relay {{ .Status | toUpper }}
+          Alert: {{ .CommonLabels.alertname }}
+          Severity: {{ .CommonLabels.severity }}
+          Firing: {{ len .Alerts.Firing }}; resolved: {{ len .Alerts.Resolved }}
+          Inspect the private monitoring dashboard and Relay operations guide.

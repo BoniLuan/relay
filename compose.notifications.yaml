@@ -1,0 +1,45 @@
+# Optional, dedicated Relay notification router. No host port or database access.
+services:
+  relay-alertmanager:
+    image: prom/alertmanager:v0.34.0
+    profiles: [notifications]
+    user: "${RELAY_RUN_UID:?Use make}:${RELAY_RUN_GID:?Use make}"
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --data.retention=120h
+      - --cluster.listen-address=
+      - --web.listen-address=:9093
+      - --log.level=info
+    volumes:
+      - type: bind
+        source: ./deploy/notifications/alertmanager.yml
+        target: /etc/alertmanager/alertmanager.yml
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./.local/telegram
+        target: /run/relay-telegram
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./.local/alertmanager-data
+        target: /alertmanager
+        bind: {create_host_path: false}
+    networks:
+      monitoring:
+        aliases: [relay-alertmanager]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.5
+    restart: unless-stopped
+    stop_grace_period: 15s
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
+networks:
+  monitoring:
+    external: true
+    name: vigil-monitoring

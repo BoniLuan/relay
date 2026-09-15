@@ -20,6 +20,14 @@ class IntegrationTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             prepare.integrate(result, added)
 
+    def test_telegram_preserves_existing_notification_routes(self):
+        base = {"alerting": {"alertmanagers": [{"static_configs": [{"targets": ["existing:9093"]}]}], "alert_relabel_configs": [{"action": "labeldrop", "regex": "private"}]}}
+        result = prepare.integrate(base, {"scrape_configs": [{"job_name": "relay-metrics"}]}, telegram=True)
+        self.assertEqual(len(result["alerting"]["alertmanagers"]), 2)
+        self.assertEqual(result["alerting"]["alertmanagers"][0], base["alerting"]["alertmanagers"][0])
+        self.assertEqual(result["alerting"]["alert_relabel_configs"], base["alerting"]["alert_relabel_configs"])
+        self.assertEqual(len(base["alerting"]["alertmanagers"]), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

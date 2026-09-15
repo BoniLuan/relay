@@ -92,3 +92,13 @@ test-alerts:
 demo-recovery:
 	docker build -t relay:observability-demo .
 	sh scripts/demo-recovery.sh
+
+.PHONY: telegram-setup notifications-start notifications-stop monitoring-prepare-telegram
+telegram-setup:
+	python3 scripts/setup-telegram.py
+notifications-start:
+	docker compose -f compose.yaml -f compose.notifications.yaml --profile notifications up -d --no-deps relay-alertmanager
+notifications-stop:
+	docker compose -f compose.yaml -f compose.notifications.yaml --profile notifications stop relay-alertmanager
+monitoring-prepare-telegram:
+	python3 scripts/prepare-monitoring.py ../vigil/deploy/observability/prometheus/prometheus.yml .local/prometheus.integrated.yml --telegram
