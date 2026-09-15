@@ -143,3 +143,8 @@ or replay transaction, before delivery locks. Counts use persisted rows instead
 of denormalized worker counters: every open-to-open transition keeps its slot,
 and a committed terminal outcome frees it. Retained events still count. See
 [capacity limits and usage](QUOTAS.md) for bounds and rollout requirements.
+
+An administrative `relay metrics` command reads aggregate delivery/attempt state
+in one PostgreSQL statement snapshot and emits bounded Prometheus text gauges.
+It introduces no HTTP server, worker instrumentation hooks or shared monitoring
+changes. See [operational metric semantics](METRICS.md).

@@ -1,6 +1,6 @@
 # Implementation status
 
-Last updated: 2026-09-14. This file tracks what exists; [ROADMAP.md](ROADMAP.md)
+Last updated: 2026-09-15. This file tracks what exists; [ROADMAP.md](ROADMAP.md)
 tracks milestone acceptance criteria and remaining work. Implemented does not mean
 publicly deployed. The public domain serves a static project page; the API remains
 private and workers are explicitly opt-in.
@@ -25,10 +25,11 @@ private and workers are explicitly opt-in.
 - [x] English institutional site, TLS, portfolio links and LinkedIn artwork.
 - [x] Durable per-client rate limit: 120 authenticated requests/minute, HTTP 429 (migration 010).
 - [x] Per-client capacity quotas, bounded open work and authenticated usage inspection.
+- [x] Administrative Prometheus-format snapshot of persisted queue/attempt state.
 
 ## Remaining work, in order
 
-- [ ] Operational metrics, alerts and reproducible failure/recovery demo.
+- [ ] Private metrics exporter, monitoring integration, alerts and failure/recovery demo.
 - [ ] Full isolated backup/restore drill, including signing master keys.
 - [ ] Coordinated history retention and ingestion-idempotency expiry policy.
 - [ ] Public API deployment hardening and one explicitly authorized real integration.
@@ -117,3 +118,18 @@ destination/event admission, ingestion versus replay for the last open slot, and
 real worker transaction completion releasing capacity without counter hooks.
 Existing worker recovery tests also passed. Disposable databases/containers were
 removed. No new migration, development-data change or deployment was required.
+
+### Durable operational metrics — 2026-09-15
+
+Reviewed single-statement snapshot consistency, database-clock age calculation,
+fixed labels/cardinality, gauge semantics, collection deadline and clean stdout
+on startup/collection errors. No blocking issue found in the inspected scope.
+Aggregate scans grow with retained data; this is an administrative snapshot, not
+a private HTTP exporter, heartbeat or monitoring/alert deployment.
+
+`make test-integration` passed with race detection, vet and PostgreSQL log privacy.
+After separating metric diagnostics onto stderr, the CLI package was rerun with
+race detection, including a subprocess test for startup failure. The Make command
+was inspected with `make -n metrics`; it was not run against development data.
+The disposable test stack was removed. No migration or shared infrastructure
+change was needed.

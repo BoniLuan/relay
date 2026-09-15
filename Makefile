@@ -73,3 +73,8 @@ worker-stop:
 	docker compose stop relay-delivery-worker
 worker-logs:
 	docker compose logs --tail 100 -f relay-delivery-worker
+
+.PHONY: metrics
+metrics:
+	@docker compose build relay-admin 1>&2
+	@docker compose run --rm --no-deps -T relay-admin metrics

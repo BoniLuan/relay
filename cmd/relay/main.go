@@ -21,7 +21,12 @@ import (
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logOutput := os.Stdout
+	// Keep machine-readable metric stdout clean even when startup fails.
+	if len(os.Args) > 1 && os.Args[1] == "metrics" {
+		logOutput = os.Stderr
+	}
+	logger := slog.New(slog.NewJSONHandler(logOutput, nil))
 	if err := run(logger); err != nil {
 		logger.Error("server stopped", "error", err)
 		os.Exit(1)
@@ -64,6 +69,8 @@ func run(logger *slog.Logger) error {
 		}
 		logger.Info("migrations applied")
 		return nil
+	case "metrics":
+		return runMetrics(ctx, db, os.Args[2:], os.Stdout)
 	case "issue-client-token", "list-client-tokens", "revoke-client-token":
 		return runTokenCommand(ctx, db, os.Args[1:], os.Stdout)
 	case "create-client":
@@ -138,7 +145,7 @@ func run(logger *slog.Logger) error {
 		}
 
 	default:
-		return errors.New("usage: relay [api|worker|migrate|create-client NAME|issue-client-token CLIENT_ID|list-client-tokens CLIENT_ID|revoke-client-token CLIENT_ID TOKEN_ID|keyring-init PATH|register-keyring]")
+		return errors.New("usage: relay [api|worker|migrate|metrics|create-client NAME|issue-client-token CLIENT_ID|list-client-tokens CLIENT_ID|revoke-client-token CLIENT_ID TOKEN_ID|keyring-init PATH|register-keyring]")
 	}
 	addr := os.Getenv("RELAY_HTTP_ADDR")
 	if addr == "" {

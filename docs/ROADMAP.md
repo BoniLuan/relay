@@ -166,9 +166,21 @@ leases remain counted; terminal work releases open capacity but retains events;
 duplicate receipts remain available at capacity; quota or commit failure retains
 no partial event or replay authorization; other clients remain independent.
 
-## 3g — Operation and demonstration (planned)
+## 3g.1 — Durable operational metric snapshot (implemented)
 
-Add metrics, backup/restore and a reproducible failure demo.
+Administrative `relay metrics` emits fixed-cardinality Prometheus gauges for
+retained delivery/attempt states, oldest open work and expired leases. One database
+snapshot, a five-second deadline, no tenant labels or new infrastructure. See
+[metric semantics](METRICS.md).
+
+Acceptance: empty states emit zeros; persisted outcomes and expired leases are
+visible across connections; database failure emits no misleading snapshot;
+collection never claims work or exposes private identifiers.
+
+## 3g.2 — Continuous observability and demonstration (planned)
+
+Add a private exporter, coordinated monitoring/alerts, backup/restore and a
+reproducible failure demo.
 
 Acceptance: replay authorization and limits are tested; secrets/payloads are absent
 from logs; a backup restores into an isolated database; the demo explains duplicate
