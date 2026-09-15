@@ -118,7 +118,8 @@ docker compose exec -T relay-db pg_dump -U relay_dev -d relay_dev -Fc > /PRIVATE
 make up
 ```
 
-Before production, perform a restore drill into a separately named disposable
+Run `make test-restore` for the automated [isolated drill](BACKUP_RESTORE.md).
+For a real backup, restore into a separately named disposable
 PostgreSQL instance with its own database/role and no shared network or host ports.
 Use `pg_restore --no-owner --no-acl` against that empty database, restore the
 matching keyring with mode 0600, and point Relay only at those isolated resources.
@@ -126,9 +127,10 @@ Run migrations if needed and `relay register-keyring`; verify readiness, metadat
 and decryption of a known active key with an isolated test receiver. Never restore
 over another application's data. Wrong/missing keys must prevent startup/decryption.
 
-Tests cover restart, key rollover, canary mismatch, tampering, rollback and v1/v2 upgrades
-migration. A full operational `pg_dump`/`pg_restore` drill is not yet automated or
-claimed as tested.
+Tests cover restart, key rollover, canary mismatch, tampering, rollback and v1/v2
+migration upgrades. The isolated operational drill also exercises real `pg_dump`/
+`pg_restore`, both master keys, original delivery history and signed HTTPS delivery.
+It does not provision durable off-host backups or a backup schedule.
 
 ## Study path
 

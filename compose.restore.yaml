@@ -1,0 +1,44 @@
+# Disposable backup drill only; no production mounts or published ports.
+name: relay-restore-drill
+x-db: &db
+  image: postgres:17.11-alpine
+  environment:
+    POSTGRES_USER: relay_drill
+    POSTGRES_PASSWORD: relay_drill_ephemeral
+    POSTGRES_DB: relay_drill
+  command: [postgres, -c, log_error_verbosity=terse, -c, log_min_error_statement=panic, -c, log_parameter_max_length_on_error=0]
+  tmpfs: [/var/lib/postgresql/data]
+  healthcheck:
+    test: [CMD-SHELL, 'pg_isready -U relay_drill -d relay_drill']
+    interval: 1s
+    timeout: 2s
+    retries: 30
+  mem_limit: 256m
+  cpus: 0.5
+services:
+  source:
+    <<: *db
+  restored:
+    <<: *db
+  verify:
+    image: postgres:17.11-alpine
+    user: "${RELAY_RUN_UID:?Use make}:${RELAY_RUN_GID:?Use make}"
+    entrypoint: [/drill.test]
+    command: [-test.v, -test.run=^TestBackupRestoreDrill$, -test.timeout=120s]
+    environment:
+      RELAY_RESTORE_DRILL: isolated
+      PGPASSWORD: relay_drill_ephemeral
+    volumes:
+      - ./.local/restore-drill.test:/drill.test:ro
+    read_only: true
+    tmpfs: [/tmp:mode=1777]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      source: {condition: service_healthy}
+      restored: {condition: service_healthy}
+    mem_limit: 256m
+    cpus: 1
+networks:
+  default:
+    internal: true

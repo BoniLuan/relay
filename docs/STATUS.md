@@ -33,7 +33,7 @@ private and workers are explicitly opt-in.
 
 - [x] Optional Telegram routing deployed through a private Relay Alertmanager.
 - [x] Verify Telegram firing and resolved message receipt end to end.
-- [ ] Full isolated backup/restore drill, including signing master keys.
+- [x] Full isolated backup/restore drill, including signing master keys.
 - [ ] Coordinated history retention and ingestion-idempotency expiry policy.
 - [ ] Public API deployment hardening and one explicitly authorized real integration.
 
@@ -182,3 +182,21 @@ an isolated, explicitly marked synthetic alert with two-minute automatic expiry.
 The operator confirmed both FIRING and RESOLVED in the channel. Alertmanager
 recorded two Telegram notifications and zero failures; all five scrape targets
 remained up. See [notification operations](NOTIFICATIONS.md).
+
+### Isolated backup/restore drill — 2026-09-15
+
+`make test-restore` exercises real PostgreSQL custom-format dump/restore on two
+disposable tmpfs instances with an internal network and no published ports.
+The source database and live key files are removed before recovery. Separate
+private key backup preserves both historical and active master keys. Verification
+covers missing/wrong/incomplete keys, canaries/readiness, client authentication,
+idempotency, exact attempt history, and pending delivery through a local signed
+HTTPS fixture without resending completed work. See [BACKUP_RESTORE.md](BACKUP_RESTORE.md).
+Off-host storage, scheduled backups, retention and PITR remain future operations.
+
+Review: pinned all drill Compose commands to an explicit project and disabled
+implicit `.env` loading; refuse leftover containers as well as the network.
+The complete drill passed with a conflicting `COMPOSE_PROJECT_NAME` environment
+value, including post-restore idempotency conflict rejection and exact history
+comparison. Temporary containers/network were removed; shell syntax and diff
+checks passed. The drill uses a static test binary without the race detector.

@@ -42,7 +42,8 @@ See [signing-secret lifecycle](SIGNING_SECRETS.md).
 Acceptance: only owners manage keys; concurrent generation creates one staged
 version; commit failure discloses no secret; restart/key rollover preserve keys;
 wrong master keys, tampering and ciphertext copying fail; revoked keys are not
-reused. A backup/restore procedure is documented; a full restore drill remains open.
+reused. The documented backup/restore procedure now has a passing isolated drill; see
+[BACKUP_RESTORE.md](BACKUP_RESTORE.md).
 
 ## 2c.1 — Queue claims and expiring leases (implemented)
 
@@ -192,7 +193,9 @@ Prometheus observations; the demo cleans up without touching other applications.
 
 ## 3g.3 — Restore and lifecycle hardening (planned)
 
-Perform a full isolated backup/restore drill and design coordinated retention.
+The full isolated backup/restore drill is implemented (`make test-restore`),
+including historical/active master keys. Coordinated retention, scheduled off-host
+backups and lifecycle hardening remain planned.
 
 Acceptance: replay authorization and limits are tested; secrets/payloads are absent
 from logs; a backup restores into an isolated database; the demo explains duplicate

@@ -102,3 +102,7 @@ notifications-stop:
 	docker compose -f compose.yaml -f compose.notifications.yaml --profile notifications stop relay-alertmanager
 monitoring-prepare-telegram:
 	python3 scripts/prepare-monitoring.py ../vigil/deploy/observability/prometheus/prometheus.yml .local/prometheus.integrated.yml --telegram
+
+.PHONY: test-restore
+test-restore:
+	sh scripts/test-restore.sh

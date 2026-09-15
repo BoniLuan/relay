@@ -95,7 +95,9 @@ Metrics remain planned.
 Compose development has a Relay-only persistent volume. Tests use a separate
 Compose project and tmpfs database, without published database ports. There is
 no production deployment, public edge connection or integration with other apps.
-Before storing important data, add and exercise a backup/restore runbook.
+The [isolated backup/restore drill](BACKUP_RESTORE.md) exercises recovery with
+synthetic data. Before storing important data, provision independently protected
+off-host backups and exercise the real operational recovery procedure.
 
 Kubernetes is optional. Existing scaffold manifests do not provision the database
 or configuration this version requires. Cluster management belongs to platform-lab;
