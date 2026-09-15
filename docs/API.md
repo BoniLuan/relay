@@ -64,9 +64,13 @@ request digest and therefore 409 when the key already exists. There is no JSON
 canonicalization. The database preserves payload semantics as JSONB and, from migration 004,
 exact payload bytes for sending. Legacy events use JSONB rendering.
 
-Keys currently remain reserved for the lifetime of their events, with no expiry
-or deletion API. Different clients may use the same key. A different key creates
-a new event even if the payload matches. Destination registration is not idempotent.
+Keys remain reserved while their event is retained: at least 30 days after its
+final terminal outcome, and indefinitely while work is open. Administrative
+[retention cleanup](RETENTION.md) removes history and the key together. Only after
+that commit does reusing the key create a new event with a new ID; the old event,
+history and replay URLs return 404. Merely reaching 30 days does not free the key.
+Different clients may use the same key. A different key creates a new event even
+if the payload matches. Destination registration is not idempotent.
 
 | Status | Meaning |
 | --- | --- |

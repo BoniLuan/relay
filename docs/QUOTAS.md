@@ -44,12 +44,12 @@ state (`succeeded`, `failed`, `unknown`) before its slot is freed. Automatic ret
 lease acquisition/release, and attempt start preserve an existing slot rather
 than acquiring another. Revoking bearer credentials does not release slots.
 
-Terminal events still count toward retention. There is currently no destination
-deletion or event-retention endpoint, so the destination and event quotas are hard
-stops requiring a future explicitly designed lifecycle policy. Waiting for the
-worker cannot free retained-event capacity. Do not delete production history or
-idempotency records manually to bypass a quota. Retention and idempotency expiry
-must be designed together in their own milestone.
+Terminal events still count toward retained-event capacity until administrative
+[retention cleanup](RETENTION.md) commits. Events become eligible 30 days after
+their final terminal outcome; live work is preserved. Worker completion alone
+does not free retained-event slots. Cleanup removes history and ingestion keys
+together, so reusing an expired key may cause a new delivery. Destination deletion
+is still unavailable; retention does not release destination slots.
 
 ## Inspect usage
 

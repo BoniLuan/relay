@@ -34,7 +34,7 @@ private and workers are explicitly opt-in.
 - [x] Optional Telegram routing deployed through a private Relay Alertmanager.
 - [x] Verify Telegram firing and resolved message receipt end to end.
 - [x] Full isolated backup/restore drill, including signing master keys.
-- [ ] Coordinated history retention and ingestion-idempotency expiry policy.
+- [x] Coordinated 30-day history/idempotency retention with bounded administrative cleanup (migration 011).
 - [ ] Public API deployment hardening and one explicitly authorized real integration.
 
 Kubernetes is optional and cluster management belongs to `platform-lab`.
@@ -192,7 +192,7 @@ private key backup preserves both historical and active master keys. Verificatio
 covers missing/wrong/incomplete keys, canaries/readiness, client authentication,
 idempotency, exact attempt history, and pending delivery through a local signed
 HTTPS fixture without resending completed work. See [BACKUP_RESTORE.md](BACKUP_RESTORE.md).
-Off-host storage, scheduled backups, retention and PITR remain future operations.
+Off-host storage, scheduled backups, backup retention and PITR remain future operations.
 
 Review: pinned all drill Compose commands to an explicit project and disabled
 implicit `.env` loading; refuse leftover containers as well as the network.
@@ -200,3 +200,28 @@ The complete drill passed with a conflicting `COMPOSE_PROJECT_NAME` environment
 value, including post-restore idempotency conflict rejection and exact history
 comparison. Temporary containers/network were removed; shell syntax and diff
 checks passed. The drill uses a static test binary without the race detector.
+
+### Coordinated history retention — 2026-09-15
+
+Policy: at least 30 × 24 hours after the final terminal outcome; open deliveries
+never expire. Migration 011 maintains terminal clocks, resets them on replay,
+and grants existing terminal rows a full migration-time grace period. The
+`prune-history` CLI defaults to a preview, supports explicit `--apply` and deletes
+at most 100 events per client/transaction. Attempts, replay receipts, payloads
+and ingestion keys expire together; destination/signing keys are preserved.
+
+`make test-integration` passed with race detection, vet and PostgreSQL log privacy.
+Tests cover preview/bounds, live/recent/foreign preservation, replay reopening,
+receipt reuse only after deletion, commit rollback, concurrent cleaners, locked
+rows and ingestion/replay races. `make test-restore` passed with both signing
+master keys and exact preservation of terminal clocks after dump/restore.
+Disposable resources were removed. Migration 011 and cleanup were not run on
+the active VPS database; no scheduler or shared infrastructure change was made.
+See [retention contract and operations](RETENTION.md).
+
+Review completed: no blocking correctness issue found in client/delivery lock
+ordering, atomic child-first deletion, migration grace or replay clock handling.
+Repeated `make test-integration` passed with race detection, vet and PostgreSQL
+log privacy; repeated `make test-restore` preserved master keys and terminal
+clocks. Documentation clarifies that batch size bounds deletions rather than all
+rows scanned, and retained-history gauges may decrease after cleanup.

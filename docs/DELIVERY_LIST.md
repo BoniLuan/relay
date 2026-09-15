@@ -112,3 +112,9 @@ Read `internal/httpapi/list.go` for validation and cursor encoding;
 `internal/storage/list.go` for parameterized keyset SQL and the extra-row method;
 then the HTTP integration and storage listing tests. [Controlled replay](REPLAY.md) is a separate mutation and is never triggered by a
 read.
+
+## Retention
+
+Administrative [retention cleanup](RETENTION.md) removes terminal events only
+after their 30-day window. Removed events disappear from subsequent pages;
+listing remains a changing view rather than a frozen historical snapshot.

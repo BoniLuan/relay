@@ -97,3 +97,10 @@ implemented separately. `replay` exposes an immutable receipt or `null`;
 `max_attempts` starts at three and may become four, five, or six after an explicit
 replay grant. Reads never reset retry budgets. Retention, metrics and public API
 deployment remain planned.
+
+## Retention
+
+History is retained with its event and replay/ingestion receipts for at least
+30 days after the final terminal outcome. Open work does not expire. After
+administrative cleanup commits, this endpoint returns 404; see
+[retention policy](RETENTION.md).

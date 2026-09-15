@@ -20,6 +20,7 @@ import (
 	"github.com/BoniLuan/relay/internal/secrets"
 	"github.com/BoniLuan/relay/internal/storage"
 	"github.com/BoniLuan/relay/internal/worker"
+	"github.com/jackc/pgx/v5"
 )
 
 // This test deliberately uses fixed, disposable database endpoints, never a
@@ -140,6 +141,20 @@ func TestBackupRestoreDrill(t *testing.T) {
 	if calls.Load() != 1 {
 		t.Fatal("seed history absent")
 	}
+	terminalClocks := func(host string) map[string]*time.Time {
+		t.Helper()
+		conn, err := pgx.Connect(ctx, "postgres://relay_drill:relay_drill_ephemeral@"+host+":5432/relay_drill?sslmode=disable")
+		must(err)
+		defer conn.Close(ctx)
+		clocks := make(map[string]*time.Time)
+		for _, f := range fixtures {
+			var terminal *time.Time
+			must(conn.QueryRow(ctx, "SELECT terminal_at FROM deliveries WHERE event_id=$1", f.event.ID).Scan(&terminal))
+			clocks[f.event.ID] = terminal
+		}
+		return clocks
+	}
+	savedClocks := terminalClocks("source")
 	before := make(map[string]string)
 	histories := make(map[string]storage.DeliveryHistory)
 	for _, f := range fixtures {
@@ -204,6 +219,10 @@ func TestBackupRestoreDrill(t *testing.T) {
 	must(restored.Migrate(ctx))
 	must(restored.RegisterKeyring(ctx))
 	must(restored.Ready(ctx))
+	if !reflect.DeepEqual(savedClocks, terminalClocks("restored")) {
+		t.Fatal("restore reset or lost terminal retention clocks")
+	}
+
 	owner, err := restored.Authenticate(ctx, token)
 	must(err)
 	if owner != client {

@@ -156,3 +156,12 @@ CLI, serves only private operational routes, and allows one database collection
 at a time. It joins the monitoring bridge separately from the API and database.
 Shared Prometheus integration is generated without editing other repositories;
 see [OBSERVABILITY.md](OBSERVABILITY.md) for activation and trust boundaries.
+
+## Coordinated retention
+
+Migration 011 maintains a terminal timestamp for every delivery state transition.
+The opt-in `prune-history` command selects at most 100 terminal events per client,
+older than 30 days, under the same client-before-delivery lock order as admission.
+History, replay receipts and ingestion keys are removed in one transaction; open
+work and signing keys are preserved. Preview is the default. See
+[retention and expiry semantics](RETENTION.md).

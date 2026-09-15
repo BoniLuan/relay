@@ -191,15 +191,19 @@ bounded; existing scrape settings survive integration generation; alert holds an
 resolution are tested; SIGKILL lease recovery and database outage produce real
 Prometheus observations; the demo cleans up without touching other applications.
 
-## 3g.3 — Restore and lifecycle hardening (planned)
+## 3g.3 — Restore and coordinated retention (implemented; further hardening planned)
 
 The full isolated backup/restore drill is implemented (`make test-restore`),
-including historical/active master keys. Coordinated retention, scheduled off-host
-backups and lifecycle hardening remain planned.
+including historical/active master keys. Migration 011 and the bounded
+`prune-history` command implement [coordinated 30-day history/idempotency
+retention](RETENTION.md). Open work is preserved; preview is the default and
+cleanup requires `--apply`. Scheduled off-host backups, backup retention and
+further lifecycle hardening remain planned.
 
 Acceptance: replay authorization and limits are tested; secrets/payloads are absent
 from logs; a backup restores into an isolated database; the demo explains duplicate
-delivery and recovery. Decide retention and idempotency expiry together.
+delivery and recovery. History and ingestion keys expire atomically, replay
+restarts the terminal window, and failed cleanup preserves all records.
 
 ## 4a — Public institutional site (implemented)
 

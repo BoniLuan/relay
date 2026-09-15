@@ -142,3 +142,10 @@ passed. All temporary databases and worker containers were removed afterward.
 New replay grants also require a free client open-delivery slot. Existing replay
 receipts bypass the capacity check, preserving retry safety at full capacity.
 The client admission lock precedes the delivery lock; see [QUOTAS.md](QUOTAS.md).
+
+## Retention window
+
+A replay grant clears the delivery's terminal retention clock. Its final outcome
+starts a fresh 30-day window for the event, attempts and replay/ingestion receipts.
+Duplicate receipt reads do not extend retention. After coordinated cleanup,
+replay of that event returns 404; see [retention](RETENTION.md).

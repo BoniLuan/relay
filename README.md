@@ -31,7 +31,11 @@ in Prometheus text format (`make metrics`).
 alert rules and an isolated recovery demo](docs/OBSERVABILITY.md). Shared monitoring
 activation is an explicit deployment step; the development DB/exporter integration
 was activated on this VPS on 2026-09-15 (see the deployment record in the guide).
-**Not implemented:** external alert notifications, a full restore drill or public API deployment.
+**Implemented:** [Telegram alerts](docs/NOTIFICATIONS.md) with confirmed firing/recovery,
+and an [isolated backup/restore drill](docs/BACKUP_RESTORE.md) including master keys.
+**Implemented, opt-in:** [30-day history and idempotency retention](docs/RETENTION.md),
+with bounded administrative previews and explicit cleanup.
+**Not implemented:** public API deployment and scheduled off-host backups.
 
 The English [project site](https://relay.boniluan.com) presents the implementation
 and illustrative delivery flows. It exposes no backend API; see the
@@ -62,7 +66,7 @@ curl --fail http://127.0.0.1:18081/readyz
 
 `make migrate` builds the application and runs the migration explicitly. Repeating
 it is safe. The API verifies the registered keyring before listening and never
-applies migrations. Readiness checks PostgreSQL, schema version 10 and the loaded
+applies migrations. Readiness checks PostgreSQL, schema version 11 and the loaded
 keyring; `/livez` checks only the HTTP process.
 `make client` is a local administrative operation with database access, not a
 public registration route. Tokens have 256 random bits; only SHA-256 hashes are
@@ -75,6 +79,7 @@ For the implementation and study path, see [architecture](docs/ARCHITECTURE.md).
 ```bash
 make test-integration   # Isolated tmpfs PostgreSQL, HTTP tests, race detector, vet
 make test-worker-process # Separate run: real worker crash and shutdown recovery
+make test-restore       # Isolated dump/restore, master keys and signed delivery
 make down               # Stops only Relay development; preserves its DB volume
 ```
 

@@ -22,8 +22,8 @@ import (
 
 func main() {
 	logOutput := os.Stdout
-	// Keep machine-readable metric stdout clean even when startup fails.
-	if len(os.Args) > 1 && os.Args[1] == "metrics" {
+	// Keep machine-readable administrative stdout clean even when startup fails.
+	if len(os.Args) > 1 && (os.Args[1] == "metrics" || os.Args[1] == "prune-history") {
 		logOutput = os.Stderr
 	}
 	logger := slog.New(slog.NewJSONHandler(logOutput, nil))
@@ -78,6 +78,8 @@ func run(logger *slog.Logger) error {
 			addr = "127.0.0.1:18082"
 		}
 		return runMetricsServer(ctx, db, addr, logger)
+	case "prune-history":
+		return runRetention(ctx, db, os.Args[2:], os.Stdout)
 	case "metrics":
 		return runMetrics(ctx, db, os.Args[2:], os.Stdout)
 	case "issue-client-token", "list-client-tokens", "revoke-client-token":
@@ -154,7 +156,7 @@ func run(logger *slog.Logger) error {
 		}
 
 	default:
-		return errors.New("usage: relay [api|worker|migrate|metrics|metrics-server|create-client NAME|issue-client-token CLIENT_ID|list-client-tokens CLIENT_ID|revoke-client-token CLIENT_ID TOKEN_ID|keyring-init PATH|register-keyring]")
+		return errors.New("usage: relay [api|worker|migrate|metrics|metrics-server|prune-history CLIENT_ID [--limit N] [--apply]|create-client NAME|issue-client-token CLIENT_ID|list-client-tokens CLIENT_ID|revoke-client-token CLIENT_ID TOKEN_ID|keyring-init PATH|register-keyring]")
 	}
 	addr := os.Getenv("RELAY_HTTP_ADDR")
 	if addr == "" {

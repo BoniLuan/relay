@@ -20,7 +20,8 @@ It then:
    --exit-on-error --single-transaction`.
 4. Rejects missing, wrong and incomplete master-key sets.
 5. Restores the complete keyring (0600), verifies canaries/migrations/readiness,
-   authentication, exact event identity, idempotency and delivery history.
+   authentication, exact event identity, idempotency, delivery history and the
+   preserved terminal retention clocks (restoration must not restart their age).
 6. Delivers remaining work through the actual worker/sender to a local HTTPS
    fixture, verifying HMAC signatures and original payload bytes. Completed work
    must not be resent.
