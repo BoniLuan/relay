@@ -1,6 +1,6 @@
 route:
   receiver: discard
-  group_by: [alertname, severity]
+  group_by: [alertname, severity, notification_test]
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 4h
@@ -20,7 +20,7 @@ receivers:
         send_resolved: true
         parse_mode: ''
         message: |-
-          Relay {{ .Status | toUpper }}
+          {{ if eq .CommonLabels.notification_test "true" }}[TEST - no service outage] {{ end }}Relay {{ .Status | toUpper }}
           Alert: {{ .CommonLabels.alertname }}
           Severity: {{ .CommonLabels.severity }}
           Firing: {{ len .Alerts.Firing }}; resolved: {{ len .Alerts.Resolved }}

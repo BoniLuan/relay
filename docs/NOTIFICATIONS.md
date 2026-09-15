@@ -2,7 +2,8 @@
 
 Active since 2026-09-15: private Alertmanager v0.34.0 connected to shared
 Prometheus. Configuration, routing, readiness, discovery and all five scrape
-targets passed validation. **Live firing/resolved message receipt is pending.**
+targets passed validation. **Live firing/resolved receipt was confirmed by the
+operator on 2026-09-15**, with two Telegram notifications and zero failures.
 
 ## Setup
 
@@ -42,9 +43,9 @@ five scrape targets and the `vigil-prometheus-data` mount. Always regenerate wit
 `make monitoring-prepare-telegram` to retain notifications. Never use
 `--remove-orphans` or `down -v` on shared services.
 
-Pending acceptance: send a clearly identified synthetic firing/resolved alert
-through Alertmanager and confirm both messages in the channel, without
-interrupting shared applications. Configuration checks do not prove receipt.
+Acceptance completed using an explicitly marked synthetic alert with automatic
+expiry after two minutes. Both FIRING and RESOLVED reached the channel; all five
+scrape targets remained healthy. No shared service was interrupted.
 
 ## Routing and operations
 
@@ -53,7 +54,7 @@ interrupting shared applications. Configuration checks do not prove receipt.
   are discarded by this router; existing shared destinations are preserved.
 - Messages contain alert name, severity, status and counts, without payloads,
   annotations, credentials or tenant identifiers. Resolved messages are enabled.
-- Grouping: alert name/severity; initial wait 30s, group interval 5m, repeat 4h.
+- Grouping: alert name/severity/test marker; initial wait 30s, group interval 5m, repeat 4h.
   Delivery depends on Telegram availability and valid credentials; inspect
   notification failures privately.
 - Only `vigil-monitoring` is attached; no host port, database access or keyring.
@@ -70,3 +71,16 @@ Prometheus using the same override. Relay scraping remains enabled. Then run
 
 See [observability](OBSERVABILITY.md) and the
 [Alertmanager configuration reference](https://prometheus.io/docs/alerting/latest/configuration/).
+
+## Synthetic verification
+
+Use the existing Relay alert labels plus `notification_test=true` when injecting
+an authorized test into the private Alertmanager API. The template adds
+`[TEST - no service outage]`; the grouping label keeps tests separate from real
+alerts. Always set a short explicit `endsAt` so a disconnected operator cannot
+leave the test firing indefinitely. Do not change real service availability.
+
+With the current settings, expect firing after approximately 30 seconds and
+resolved at the next five-minute group interval. Check the Telegram notification
+and failure counters before/after, and confirm both messages in the channel.
+API acceptance and successful notification counters do not establish human receipt.

@@ -32,7 +32,7 @@ private and workers are explicitly opt-in.
 ## Remaining work, in order
 
 - [x] Optional Telegram routing deployed through a private Relay Alertmanager.
-- [ ] Verify Telegram firing and resolved message receipt end to end.
+- [x] Verify Telegram firing and resolved message receipt end to end.
 - [ ] Full isolated backup/restore drill, including signing master keys.
 - [ ] Coordinated history retention and ingestion-idempotency expiry policy.
 - [ ] Public API deployment hardening and one explicitly authorized real integration.
@@ -177,5 +177,8 @@ credentials outside Git (directory 0700, files 0600). Prometheus now discovers
 checks passed, including rejection of another service's alert. Both monitoring
 configuration-preservation tests passed. All five scrape targets remain up;
 other running container IDs and the Prometheus data volume were preserved.
-No real Telegram message was sent during verification: firing/resolved receipt
-remains pending. See [notification operations](NOTIFICATIONS.md).
+Initial activation checks sent no messages. Subsequent live verification sent
+an isolated, explicitly marked synthetic alert with two-minute automatic expiry.
+The operator confirmed both FIRING and RESOLVED in the channel. Alertmanager
+recorded two Telegram notifications and zero failures; all five scrape targets
+remained up. See [notification operations](NOTIFICATIONS.md).

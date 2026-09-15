@@ -183,7 +183,7 @@ Dedicated exporter, preserved shared-Prometheus configuration via optional Relay
 Compose override, four tested alert rules, and disposable Prometheus/worker/DB
 failure demo. See [operations and activation](OBSERVABILITY.md). No automatic
 shared deployment. Optional Telegram routing has since been deployed; see
-[notification operations](NOTIFICATIONS.md). Live message receipt is pending.
+[notification operations](NOTIFICATIONS.md). Live firing/resolved message receipt has been confirmed.
 
 Acceptance: failed scrapes expose no stale snapshot; collection concurrency is
 bounded; existing scrape settings survive integration generation; alert holds and
