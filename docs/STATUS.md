@@ -28,9 +28,10 @@ private and workers are explicitly opt-in.
 - [x] Administrative Prometheus-format snapshot of persisted queue/attempt state.
 - [x] Opt-in private exporter, monitoring integration configuration, alert rules and isolated recovery demo.
 
+- [x] Relay development DB/exporter deployed and integrated with shared Prometheus (2026-09-15).
+
 ## Remaining work, in order
 
-- [ ] Activate the optional Relay integration in shared monitoring when deploying Relay.
 - [ ] External notification routing, if required.
 - [ ] Full isolated backup/restore drill, including signing master keys.
 - [ ] Coordinated history retention and ingestion-idempotency expiry policy.
@@ -151,3 +152,18 @@ demo-recovery` verified a real Prometheus scrape, SIGKILL lease expiry, alert
 firing, process recovery, resolution, disposable DB outage and recovery. All test
 containers/network were removed. Vigil's repository and running shared monitoring
 were unchanged; shared INFRASTRUCTURE.md records the new opt-in allocation.
+
+### Shared monitoring activation — 2026-09-15
+
+Initialized a new Relay-only development database with migrations 001–010 and
+fresh credentials in ignored mode-0600 `.env`; no prior Relay volume existed.
+Started only the database and private exporter, with no published host ports.
+Applied the reviewed override to the existing Prometheus service, preserving
+`vigil-prometheus-data`. No API, delivery worker or signing keyring was started.
+
+Verified all five targets healthy, all four Relay rules evaluated without errors
+and inactive, unchanged IDs for all other running containers, and healthy Relay
+DB/exporter containers. Runtime Compose uses both the Vigil base and Relay
+override: retain that combination for subsequent monitoring deployments.
+Development DB/exporter restart policy remains `no`; restart them explicitly
+after a host restart. No external notifications or production API deployment.

@@ -161,3 +161,23 @@ Validation on 2026-09-15: all listed tests passed, including the real Prometheus
 demo. The generated shared config and Compose override passed validation while
 preserving all four existing scrape jobs. The shared override was **not activated**;
 no Relay development database or shared service was started/recreated.
+
+## Active VPS deployment — 2026-09-15
+
+The optional integration is now **active**. `relay-dev-relay-db-1` and
+`relay-dev-relay-metrics-1` are healthy. The new Relay-only database contains schema
+010 and no events at activation. Its newly generated credentials are in ignored
+mode-0600 `.env`. No API, delivery worker or signing keyring was provisioned by
+this observability deployment. Neither container publishes a host port.
+
+The existing Prometheus was recreated with the override above and retains
+`vigil-prometheus-data`. `relay-metrics`, `vigil-api`, `vigil-worker`, `node-exporter`
+and `cadvisor` were all verified up; four Relay rules were healthy and inactive.
+All other running container IDs remained unchanged. Keep the override in future
+Prometheus deploys so Relay's scrape job and rules remain loaded.
+
+The earlier validation-only record describes the state before this activation.
+DB/exporter retain the development `restart: "no"` policy. After a host restart,
+run `make db` followed by `make metrics-start`; API/workers are not dependencies.
+Use the documented original-Compose rollback to disable the shared integration
+while preserving all monitoring data.

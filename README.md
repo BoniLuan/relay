@@ -29,7 +29,8 @@ with a shared 120-request fixed minute window and HTTP 429 / Retry-After.
 in Prometheus text format (`make metrics`).
 **Implemented, opt-in:** [private metrics exporter, monitoring configuration,
 alert rules and an isolated recovery demo](docs/OBSERVABILITY.md). Shared monitoring
-activation is an explicit deployment step.
+activation is an explicit deployment step; the development DB/exporter integration
+was activated on this VPS on 2026-09-15 (see the deployment record in the guide).
 **Not implemented:** external alert notifications, a full restore drill or public API deployment.
 
 The English [project site](https://relay.boniluan.com) presents the implementation
