@@ -27,12 +27,12 @@ private and workers are explicitly opt-in.
 - [x] Per-client capacity quotas, bounded open work and authenticated usage inspection.
 - [x] Administrative Prometheus-format snapshot of persisted queue/attempt state.
 - [x] Opt-in private exporter, monitoring integration configuration, alert rules and isolated recovery demo.
-
 - [x] Relay development DB/exporter deployed and integrated with shared Prometheus (2026-09-15).
 
 ## Remaining work, in order
 
-- [ ] External notification routing, if required.
+- [x] Optional Telegram routing deployed through a private Relay Alertmanager.
+- [ ] Verify Telegram firing and resolved message receipt end to end.
 - [ ] Full isolated backup/restore drill, including signing master keys.
 - [ ] Coordinated history retention and ingestion-idempotency expiry policy.
 - [ ] Public API deployment hardening and one explicitly authorized real integration.
@@ -167,3 +167,15 @@ DB/exporter containers. Runtime Compose uses both the Vigil base and Relay
 override: retain that combination for subsequent monitoring deployments.
 Development DB/exporter restart policy remains `no`; restart them explicitly
 after a host restart. No external notifications or production API deployment.
+
+### Telegram routing activation — 2026-09-15
+
+Started Relay's dedicated Alertmanager v0.34.0 without host ports or database
+access. Local interactive setup verified channel posting permission and stored
+credentials outside Git (directory 0700, files 0600). Prometheus now discovers
+`relay-alertmanager:9093`; readiness passed. Configuration and receiver routing
+checks passed, including rejection of another service's alert. Both monitoring
+configuration-preservation tests passed. All five scrape targets remain up;
+other running container IDs and the Prometheus data volume were preserved.
+No real Telegram message was sent during verification: firing/resolved receipt
+remains pending. See [notification operations](NOTIFICATIONS.md).

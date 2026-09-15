@@ -101,7 +101,8 @@ and `service="relay"`; they do not inherit Vigil's production identity. Scraping
 is every 30 seconds with a seven-second timeout and bounded sample/label counts.
 For rollback, recreate **only Prometheus** using its original Compose file without
 Relay's override, then stop Relay's exporter. Do not remove any persistent volume.
-No Grafana dashboard or external notification destination is provisioned here.
+No Grafana dashboard is provisioned here. Optional Telegram routing is described
+in [NOTIFICATIONS.md](NOTIFICATIONS.md).
 
 ## Alerts and interpretation
 
@@ -112,8 +113,9 @@ No Grafana dashboard or external notification destination is provisioned here.
 | RelayOpenWorkAging | oldest open creation age > 15 minutes for 5 minutes | Worker progress, delayed retries and signing-key cooldown |
 | RelayExpiredLeases | expired leases > 0 for 2 minutes | Worker recovery and database access |
 
-These rules report firing state inside Prometheus. No Alertmanager, email, Slack,
-or other external notification route is added. `promtool` tests validate holds,
+These rules report firing state inside Prometheus. The optional dedicated
+Alertmanager forwards the four Relay alerts to Telegram; see
+[NOTIFICATIONS.md](NOTIFICATIONS.md). `promtool` tests validate holds,
 brief spikes, the exact age threshold, missing targets and resolution. Gauges are
 not lifetime counters: failed historical attempts are not treated as a new-error
 rate. An idle queue does not establish worker liveness; heartbeats and HTTP latency
