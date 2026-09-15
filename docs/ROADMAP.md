@@ -177,10 +177,21 @@ Acceptance: empty states emit zeros; persisted outcomes and expired leases are
 visible across connections; database failure emits no misleading snapshot;
 collection never claims work or exposes private identifiers.
 
-## 3g.2 — Continuous observability and demonstration (planned)
+## 3g.2 — Private observability and recovery demo (implemented, opt-in)
 
-Add a private exporter, coordinated monitoring/alerts, backup/restore and a
-reproducible failure demo.
+Dedicated exporter, preserved shared-Prometheus configuration via optional Relay
+Compose override, four tested alert rules, and disposable Prometheus/worker/DB
+failure demo. See [operations and activation](OBSERVABILITY.md). No automatic
+shared deployment or external notification route.
+
+Acceptance: failed scrapes expose no stale snapshot; collection concurrency is
+bounded; existing scrape settings survive integration generation; alert holds and
+resolution are tested; SIGKILL lease recovery and database outage produce real
+Prometheus observations; the demo cleans up without touching other applications.
+
+## 3g.3 — Restore and lifecycle hardening (planned)
+
+Perform a full isolated backup/restore drill and design coordinated retention.
 
 Acceptance: replay authorization and limits are tested; secrets/payloads are absent
 from logs; a backup restores into an isolated database; the demo explains duplicate

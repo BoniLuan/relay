@@ -148,3 +148,9 @@ An administrative `relay metrics` command reads aggregate delivery/attempt state
 in one PostgreSQL statement snapshot and emits bounded Prometheus text gauges.
 It introduces no HTTP server, worker instrumentation hooks or shared monitoring
 changes. See [operational metric semantics](METRICS.md).
+
+The opt-in `metrics-server` process shares the bounded snapshot renderer with the
+CLI, serves only private operational routes, and allows one database collection
+at a time. It joins the monitoring bridge separately from the API and database.
+Shared Prometheus integration is generated without editing other repositories;
+see [OBSERVABILITY.md](OBSERVABILITY.md) for activation and trust boundaries.

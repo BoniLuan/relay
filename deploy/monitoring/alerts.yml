@@ -1,0 +1,31 @@
+groups:
+  - name: relay-operations
+    rules:
+      - alert: RelayMetricsUnavailable
+        expr: up{job="relay-metrics"} == 0
+        for: 2m
+        labels: {severity: critical, service: relay}
+        annotations:
+          summary: Relay metrics collection is unavailable
+          description: Check exporter reachability and database health; failed collection returns HTTP 503.
+      - alert: RelayMetricsTargetMissing
+        expr: absent(up{job="relay-metrics"})
+        for: 5m
+        labels: {severity: warning, service: relay}
+        annotations:
+          summary: Relay metrics target is missing
+          description: Check the Relay scrape configuration and target labels.
+      - alert: RelayOpenWorkAging
+        expr: relay_open_delivery_oldest_age_seconds{job="relay-metrics"} > 900
+        for: 5m
+        labels: {severity: warning, service: relay}
+        annotations:
+          summary: Relay has old open work
+          description: Inspect workers, signing-key cooldown and retry schedules; age includes original creation before replay.
+      - alert: RelayExpiredLeases
+        expr: relay_expired_delivery_leases{job="relay-metrics"} > 0
+        for: 2m
+        labels: {severity: warning, service: relay}
+        annotations:
+          summary: Relay leases remain expired
+          description: Check worker recovery and database access; remote side effects may already have occurred.

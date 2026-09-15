@@ -1,0 +1,6 @@
+# Applied after Vigil's observability Compose file; only Prometheus is changed.
+services:
+  prometheus:
+    volumes:
+      - /home/luan/projects/relay/.local/prometheus.integrated.yml:/etc/prometheus/prometheus.yml:ro
+      - /home/luan/projects/relay/deploy/monitoring:/etc/prometheus/relay:ro

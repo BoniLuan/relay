@@ -1,0 +1,81 @@
+rule_files: [alerts.yml]
+evaluation_interval: 1m
+tests:
+  - name: outage fires after hold and resolves
+    interval: 1m
+    input_series:
+      - series: 'up{job="relay-metrics",instance="relay-metrics:9091"}'
+        values: '1 0 0 0 1 1'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: RelayMetricsUnavailable
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: RelayMetricsUnavailable
+        exp_alerts:
+          - exp_labels: {job: relay-metrics, instance: 'relay-metrics:9091', severity: critical, service: relay}
+            exp_annotations:
+              summary: Relay metrics collection is unavailable
+              description: Check exporter reachability and database health; failed collection returns HTTP 503.
+      - eval_time: 4m
+        alertname: RelayMetricsUnavailable
+        exp_alerts: []
+  - name: absent target fires
+    interval: 1m
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: RelayMetricsTargetMissing
+        exp_alerts:
+          - exp_labels: {job: relay-metrics, severity: warning, service: relay}
+            exp_annotations:
+              summary: Relay metrics target is missing
+              description: Check the Relay scrape configuration and target labels.
+  - name: old work and leases persist then resolve
+    interval: 1m
+    input_series:
+      - series: 'up{job="relay-metrics",instance="relay-metrics:9091"}'
+        values: '1+0x10'
+      - series: 'relay_open_delivery_oldest_age_seconds{job="relay-metrics",instance="relay-metrics:9091"}'
+        values: '901+0x5 0 0'
+      - series: 'relay_expired_delivery_leases{job="relay-metrics",instance="relay-metrics:9091"}'
+        values: '1+0x5 0 0'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: RelayExpiredLeases
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: RelayExpiredLeases
+        exp_alerts:
+          - exp_labels: {job: relay-metrics, instance: 'relay-metrics:9091', severity: warning, service: relay}
+            exp_annotations:
+              summary: Relay leases remain expired
+              description: Check worker recovery and database access; remote side effects may already have occurred.
+      - eval_time: 5m
+        alertname: RelayOpenWorkAging
+        exp_alerts:
+          - exp_labels: {job: relay-metrics, instance: 'relay-metrics:9091', severity: warning, service: relay}
+            exp_annotations:
+              summary: Relay has old open work
+              description: Inspect workers, signing-key cooldown and retry schedules; age includes original creation before replay.
+      - eval_time: 6m
+        alertname: RelayOpenWorkAging
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: RelayExpiredLeases
+        exp_alerts: []
+  - name: brief spike and exact age threshold do not alert
+    interval: 1m
+    input_series:
+      - series: 'up{job="relay-metrics",instance="relay-metrics:9091"}'
+        values: '1+0x10'
+      - series: 'relay_expired_delivery_leases{job="relay-metrics",instance="relay-metrics:9091"}'
+        values: '0 1 0 0 0 0 0'
+      - series: 'relay_open_delivery_oldest_age_seconds{job="relay-metrics",instance="relay-metrics:9091"}'
+        values: '900+0x10'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: RelayExpiredLeases
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: RelayOpenWorkAging
+        exp_alerts: []

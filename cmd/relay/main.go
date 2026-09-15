@@ -69,6 +69,15 @@ func run(logger *slog.Logger) error {
 		}
 		logger.Info("migrations applied")
 		return nil
+	case "metrics-server":
+		if len(os.Args) != 2 {
+			return errors.New("usage: relay metrics-server")
+		}
+		addr := os.Getenv("RELAY_METRICS_ADDR")
+		if addr == "" {
+			addr = "127.0.0.1:18082"
+		}
+		return runMetricsServer(ctx, db, addr, logger)
 	case "metrics":
 		return runMetrics(ctx, db, os.Args[2:], os.Stdout)
 	case "issue-client-token", "list-client-tokens", "revoke-client-token":
@@ -145,7 +154,7 @@ func run(logger *slog.Logger) error {
 		}
 
 	default:
-		return errors.New("usage: relay [api|worker|migrate|metrics|create-client NAME|issue-client-token CLIENT_ID|list-client-tokens CLIENT_ID|revoke-client-token CLIENT_ID TOKEN_ID|keyring-init PATH|register-keyring]")
+		return errors.New("usage: relay [api|worker|migrate|metrics|metrics-server|create-client NAME|issue-client-token CLIENT_ID|list-client-tokens CLIENT_ID|revoke-client-token CLIENT_ID TOKEN_ID|keyring-init PATH|register-keyring]")
 	}
 	addr := os.Getenv("RELAY_HTTP_ADDR")
 	if addr == "" {

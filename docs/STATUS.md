@@ -26,10 +26,12 @@ private and workers are explicitly opt-in.
 - [x] Durable per-client rate limit: 120 authenticated requests/minute, HTTP 429 (migration 010).
 - [x] Per-client capacity quotas, bounded open work and authenticated usage inspection.
 - [x] Administrative Prometheus-format snapshot of persisted queue/attempt state.
+- [x] Opt-in private exporter, monitoring integration configuration, alert rules and isolated recovery demo.
 
 ## Remaining work, in order
 
-- [ ] Private metrics exporter, monitoring integration, alerts and failure/recovery demo.
+- [ ] Activate the optional Relay integration in shared monitoring when deploying Relay.
+- [ ] External notification routing, if required.
 - [ ] Full isolated backup/restore drill, including signing master keys.
 - [ ] Coordinated history retention and ingestion-idempotency expiry policy.
 - [ ] Public API deployment hardening and one explicitly authorized real integration.
@@ -133,3 +135,19 @@ race detection, including a subprocess test for startup failure. The Make comman
 was inspected with `make -n metrics`; it was not run against development data.
 The disposable test stack was removed. No migration or shared infrastructure
 change was needed.
+
+### Private exporter, integration and recovery demo — 2026-09-15
+
+Reviewed private listener separation, bounded collection concurrency, no stale
+responses, generated-config preservation, fixed alert labels/holds and isolated
+failure cleanup. No blocking issue found in the inspected scope. Shared bridge
+access is trusted; a dedicated read-only database role, notifications and actual
+shared-monitoring activation remain documented deployment/hardening work.
+
+`make test-integration` passed with race detector, vet and PostgreSQL log privacy.
+`make test-alerts`, the Python integration-preservation test, merged Prometheus
+config validation and both Compose configuration checks passed. `make
+demo-recovery` verified a real Prometheus scrape, SIGKILL lease expiry, alert
+firing, process recovery, resolution, disposable DB outage and recovery. All test
+containers/network were removed. Vigil's repository and running shared monitoring
+were unchanged; shared INFRASTRUCTURE.md records the new opt-in allocation.

@@ -3,7 +3,7 @@
 This first observability milestone provides `relay metrics`, an administrative
 one-shot snapshot in Prometheus text exposition format. It reports persisted
 queue and attempt state across API/worker processes, including work retained
-through crashes. It is not a running HTTP exporter or a monitoring deployment.
+through crashes. For the opt-in HTTP exporter, integration and alerts, see [OBSERVABILITY.md](OBSERVABILITY.md).
 
 ## Run
 
@@ -64,8 +64,8 @@ scrapes. There is no collection cache or scheduled polling in this milestone.
 Do not serve an old saved snapshot as live telemetry. Automated textfile
 publication, if added later, needs atomic replacement and freshness monitoring.
 This command does not provide scrape timestamps, worker heartbeats, HTTP request
-counters, latency histograms, alert rules, or dashboards. A private exporter and
-coordinated monitoring integration remain the next observability milestone.
+counters, latency histograms, alert rules, or dashboards. The private exporter and optional monitoring integration are now implemented
+separately; see [OBSERVABILITY.md](OBSERVABILITY.md).
 
 ## Verification and code study
 

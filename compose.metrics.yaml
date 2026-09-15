@@ -1,0 +1,33 @@
+# Optional Relay exporter. No host port and no connection to the public edge.
+services:
+  relay-metrics:
+    image: relay:dev
+    build: .
+    profiles: [metrics]
+    command: [metrics-server]
+    environment:
+      RELAY_METRICS_ADDR: :9091
+      RELAY_DATABASE_URL: postgres://relay_dev:${RELAY_DB_PASSWORD:?Set RELAY_DB_PASSWORD in .env}@relay-db:5432/relay_dev?sslmode=disable
+    networks:
+      default: {}
+      monitoring:
+        aliases: [relay-metrics]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.5
+    restart: "no"
+    stop_grace_period: 7s
+    healthcheck:
+      test: [CMD, wget, --quiet, --spider, http://127.0.0.1:9091/livez]
+      interval: 15s
+      timeout: 2s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
+networks:
+  monitoring:
+    external: true
+    name: vigil-monitoring

@@ -78,3 +78,17 @@ worker-logs:
 metrics:
 	@docker compose build relay-admin 1>&2
 	@docker compose run --rm --no-deps -T relay-admin metrics
+
+.PHONY: metrics-start metrics-stop monitoring-prepare test-alerts demo-recovery
+metrics-start:
+	docker compose -f compose.yaml -f compose.metrics.yaml --profile metrics up -d --build --no-deps relay-metrics
+metrics-stop:
+	docker compose -f compose.yaml -f compose.metrics.yaml --profile metrics stop relay-metrics
+monitoring-prepare:
+	python3 scripts/prepare-monitoring.py ../vigil/deploy/observability/prometheus/prometheus.yml .local/prometheus.integrated.yml
+test-alerts:
+	docker run --rm --network none -v "$(CURDIR)/deploy/monitoring:/rules:ro" --workdir /rules --entrypoint /bin/promtool prom/prometheus:v3.14.0 check rules alerts.yml
+	docker run --rm --network none -v "$(CURDIR)/deploy/monitoring:/rules:ro" --workdir /rules --entrypoint /bin/promtool prom/prometheus:v3.14.0 test rules alerts.test.yml
+demo-recovery:
+	docker build -t relay:observability-demo .
+	sh scripts/demo-recovery.sh

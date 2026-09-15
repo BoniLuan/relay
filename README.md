@@ -27,7 +27,10 @@ with a shared 120-request fixed minute window and HTTP 429 / Retry-After.
 20 destinations, 1,000 retained events and 100 open deliveries.
 **Implemented:** [administrative operational metric snapshots](docs/METRICS.md)
 in Prometheus text format (`make metrics`).
-**Not implemented:** continuous metrics collection/alerts, a full restore drill or public API deployment.
+**Implemented, opt-in:** [private metrics exporter, monitoring configuration,
+alert rules and an isolated recovery demo](docs/OBSERVABILITY.md). Shared monitoring
+activation is an explicit deployment step.
+**Not implemented:** external alert notifications, a full restore drill or public API deployment.
 
 The English [project site](https://relay.boniluan.com) presents the implementation
 and illustrative delivery flows. It exposes no backend API; see the
