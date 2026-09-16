@@ -261,15 +261,17 @@
               administrative client-token rotation and revocation, plus durable
               per-client request rate limits, capacity quotas, and administrative
               operational metric snapshots, a private exporter, tested alerts, and
-              an isolated recovery demo, and active private monitoring.
+              an isolated recovery demo, active private monitoring, Telegram alerts,
+              and coordinated 30-day history retention.
             </p>
           </div>
           <div>
             <span class="status next">PLANNED</span>
             <h3>Operational readiness</h3>
             <p>
-              Backup/restore validation and deployment
-              hardening before public API access.
+              The authenticated API and worker are live, with a verified signed
+              HTTPS integration and isolated backup/restore checks. Scheduled
+              off-host backups and release automation are next.
             </p>
           </div>
           <a class="text-link" href="https://github.com/BoniLuan/relay"

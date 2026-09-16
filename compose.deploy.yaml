@@ -1,0 +1,68 @@
+# VPS overlay: preserve the existing Relay DB/volume and loopback API port.
+services:
+  relay-db:
+    restart: unless-stopped
+  relay-api:
+    environment:
+      RELAY_DATABASE_URL: postgres://relay_runtime:${RELAY_RUNTIME_DB_PASSWORD:?Provision runtime roles}@relay-db:5432/relay_dev?sslmode=disable
+    image: ${RELAY_DEPLOY_IMAGE:?Use the deployment environment}
+    restart: unless-stopped
+    networks:
+      default: {}
+      edge:
+        aliases: [relay-public-api]
+  relay-delivery-worker:
+    environment:
+      RELAY_DATABASE_URL: postgres://relay_runtime:${RELAY_RUNTIME_DB_PASSWORD:?Provision runtime roles}@relay-db:5432/relay_dev?sslmode=disable
+    image: ${RELAY_DEPLOY_IMAGE:?Use the deployment environment}
+    restart: unless-stopped
+  relay-metrics:
+    environment:
+      RELAY_DATABASE_URL: postgres://relay_metrics:${RELAY_METRICS_DB_PASSWORD:?Provision runtime roles}@relay-db:5432/relay_dev?sslmode=disable
+    image: ${RELAY_DEPLOY_IMAGE:?Use the deployment environment}
+    restart: unless-stopped
+  relay-admin:
+    image: ${RELAY_DEPLOY_IMAGE:?Use the deployment environment}
+  relay-worker:
+    image: ${RELAY_DEPLOY_IMAGE:?Use the deployment environment}
+  relay-demo:
+    image: ${RELAY_DEMO_IMAGE:?Use the deployment environment}
+    build:
+      context: .
+      dockerfile: deploy/demo/Dockerfile
+    profiles: [demo]
+    user: "${RELAY_RUN_UID:?Use make}:${RELAY_RUN_GID:?Use make}"
+    environment:
+      RELAY_DEMO_SECRET_FILE: /run/relay-demo/signing-secret
+    volumes:
+      - type: bind
+        source: ./.local/demo/secrets
+        target: /run/relay-demo
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./.local/demo/data
+        target: /data
+        bind: {create_host_path: false}
+    networks:
+      edge:
+        aliases: [relay-demo-receiver]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 64m
+    cpus: 0.25
+    restart: unless-stopped
+    stop_grace_period: 7s
+    healthcheck:
+      test: [CMD, wget, --quiet, --spider, http://127.0.0.1:8080/livez]
+      interval: 15s
+      timeout: 2s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
+networks:
+  edge:
+    external: true
+    name: web-proxy

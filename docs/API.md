@@ -1,5 +1,9 @@
 # API contract
 
+Personal deployment: `https://relay.boniluan.com/api/v1/`. Use a descriptive
+User-Agent (for example `RelayIntegration/1.0`) with this Cloudflare-proxied host;
+see [deployment](DEPLOYMENT.md). The local examples below also remain available.
+
 All `/api/v1/*` endpoints require `Authorization: Bearer <token>`. Requests with a
 body require `Content-Type: application/json`. JSON bodies must use valid UTF-8,
 are limited to 64 KiB and at most 64 nested objects/arrays (including the envelope);

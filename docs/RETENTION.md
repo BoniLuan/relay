@@ -88,8 +88,8 @@ nothing. Repeating it does not reset the clock. Open rows have no terminal clock
 
 Apply migrations explicitly before using updated binaries; do not let startup
 apply them. Take a coordinated backup first. This milestone implements the
-command and tests; it **does not apply migration 011 to the shared VPS database,
-run cleanup against development data, install a scheduler or change infrastructure**.
+command and tests. Migration 011 was subsequently applied during the
+[personal deployment](DEPLOYMENT.md); no cleanup or retention scheduler has been run.
 Off-host backup retention, signing-key/token history pruning and global client
 limits remain separate work.
 

@@ -208,12 +208,16 @@ restarts the terminal window, and failed cleanup preserves all records.
 ## 4a — Public institutional site (implemented)
 
 English static project site at `relay.boniluan.com`, dedicated origin TLS, and
-portfolio links. The API remains private. See [site operations](SITE.md).
+portfolio links. The same host now exposes authenticated API routes; see
+[site operations](SITE.md) and [deployment](DEPLOYMENT.md).
 
-## 4b — Public API deployment and optional Kubernetes (planned)
+## 4b — Personal public API deployment (implemented)
 
-Choose deployment based on measured resource needs. Plan DNS/TLS, credentials,
-backups and one explicitly authorized integration. Kubernetes learning remains
+Pinned Compose deployment, migration 011, independent master-key backup,
+public TLS/authentication and bounded proxy access are active. An authorized
+synthetic HTTPS receiver verified HMAC, durable deduplication and real worker
+delivery. See [deployment and remaining limitations](DEPLOYMENT.md). Scheduled
+off-host backups and release automation remain follow-up work. Kubernetes learning remains
 independent in platform-lab; update application manifests with database/configuration
 requirements only when that work is chosen.
 

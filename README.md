@@ -35,14 +35,24 @@ was activated on this VPS on 2026-09-15 (see the deployment record in the guide)
 and an [isolated backup/restore drill](docs/BACKUP_RESTORE.md) including master keys.
 **Implemented, opt-in:** [30-day history and idempotency retention](docs/RETENTION.md),
 with bounded administrative previews and explicit cleanup.
-**Not implemented:** public API deployment and scheduled off-host backups.
+**Deployed:** [personal public API and continuous worker](docs/DEPLOYMENT.md), with
+a verified signed HTTPS integration and Telegram alerts. Scheduled off-host backups
+and automated releases remain planned.
 
 The English [project site](https://relay.boniluan.com) presents the implementation
-and illustrative delivery flows. It exposes no backend API; see the
-[site deployment guide](docs/SITE.md).
+and illustrative delivery flows. The same domain exposes authenticated
+`/api/v1/` routes; the page itself makes no API calls. See the [site guide](docs/SITE.md).
 
 See [implementation status](docs/STATUS.md) for the completed/pending checklist
 and [roadmap](docs/ROADMAP.md) for milestone acceptance criteria.
+
+## Operate the existing VPS deployment
+
+Use `make deploy-check`, `make deploy-status`, and `make deploy-up` to preserve
+all active overlays and pinned images. The owner credential is stored privately in
+`.local/operator/credentials`. Read the [deployment guide](docs/DEPLOYMENT.md)
+before migrations, image changes or cleanup; the development commands below are
+for separate local setup.
 
 ## Run locally with Docker Compose
 

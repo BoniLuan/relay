@@ -1,9 +1,9 @@
 # Implementation status
 
-Last updated: 2026-09-15. This file tracks what exists; [ROADMAP.md](ROADMAP.md)
+Last updated: 2026-09-16. This file tracks what exists; [ROADMAP.md](ROADMAP.md)
 tracks milestone acceptance criteria and remaining work. Implemented does not mean
-publicly deployed. The public domain serves a static project page; the API remains
-private and workers are explicitly opt-in.
+publicly deployed. The personal VPS now serves the institutional page and
+authenticated public API, with its continuous worker enabled. See [deployment](DEPLOYMENT.md).
 
 ## Implemented
 
@@ -35,7 +35,9 @@ private and workers are explicitly opt-in.
 - [x] Verify Telegram firing and resolved message receipt end to end.
 - [x] Full isolated backup/restore drill, including signing master keys.
 - [x] Coordinated 30-day history/idempotency retention with bounded administrative cleanup (migration 011).
-- [ ] Public API deployment hardening and one explicitly authorized real integration.
+- [x] Personal public API deployment with bounded edge access and authorized signed HTTPS integration.
+- [ ] Scheduled off-host backups and independent secret recovery.
+- [ ] Automate reviewed releases and ongoing operational checks.
 
 Kubernetes is optional and cluster management belongs to `platform-lab`.
 At-least-once delivery permits duplicates; receivers must deduplicate. A bounded
@@ -225,3 +227,22 @@ Repeated `make test-integration` passed with race detection, vet and PostgreSQL
 log privacy; repeated `make test-restore` preserved master keys and terminal
 clocks. Documentation clarifies that batch size bounds deletions rather than all
 rows scanned, and retained-history gauges may decrease after cleanup.
+
+### Personal public deployment — 2026-09-16
+
+Backed up the existing database, created/backed up the master key, applied migration
+011, registered keys and started API/continuous worker with pinned images and
+restart policies. Updated only Relay's Nginx virtual host; added edge rate/body/
+timeout limits and disabled proxy retries/caching. Metrics and administrative
+paths remain private. Owner and demo credentials are stored locally outside Git.
+
+An explicitly authorized synthetic event traversed public HTTPS and the actual
+signed worker. Receipt durability, duplicate ingestion, receiver deduplication
+after restart, signature rejection, ownership, 413 and edge 429 were verified.
+Receiver tests passed with race detection and vet. Five monitoring targets and
+other public sites remained healthy; unrelated container IDs were preserved.
+Runtime roles now separate API/worker writes, read-only exporter access and
+administrative migrations. A signed delivery with the restricted role passed;
+negative privilege checks passed. A coordinated post-deployment database/key
+backup was taken. No retention deletion or Kubernetes action was performed. See [DEPLOYMENT.md](DEPLOYMENT.md) for active
+resources, credentials, limitations and future release/rollback procedure.

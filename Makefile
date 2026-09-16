@@ -106,3 +106,14 @@ monitoring-prepare-telegram:
 .PHONY: test-restore
 test-restore:
 	sh scripts/test-restore.sh
+
+# VPS operations preserve all active overlays and pinned images. Development
+# targets above remain separate; migrations and image selection are explicit.
+DEPLOY_COMPOSE = docker compose --env-file .env --env-file .local/deploy.env -p relay-dev -f compose.yaml -f compose.metrics.yaml -f compose.notifications.yaml -f compose.deploy.yaml --profile metrics --profile delivery --profile notifications --profile demo
+.PHONY: deploy-check deploy-up deploy-status
+deploy-check:
+	$(DEPLOY_COMPOSE) config --quiet
+deploy-up:
+	$(DEPLOY_COMPOSE) up -d --no-build relay-db relay-api relay-delivery-worker relay-metrics relay-alertmanager relay-demo
+deploy-status:
+	$(DEPLOY_COMPOSE) ps

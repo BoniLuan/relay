@@ -15,13 +15,16 @@ VPS; a missing site directory causes 404 responses. Only the site directory is
 mounted, never the Relay repository, environment, database, or signing keyring.
 
 The Relay virtual host serves `/`, `/styles.css`, `/flow.js`, and `/mark.svg`.
-Unknown paths (including `/api/`, `/metrics`, and `/.env`) return 404. Only GET
-and HEAD are accepted over HTTPS. CSP restricts content to local static assets
+Authenticated `/api/v1/` routes and signed `/demo/hook` now proxy to Relay;
+see [DEPLOYMENT.md](DEPLOYMENT.md). Unknown/private paths such as `/metrics` and
+`/.env` return 404. Static routes accept only GET and HEAD. CSP restricts content to local static assets
 and disallows framing and forms. HTTP redirects to the fixed HTTPS hostname,
-except for the ACME challenge webroot. HTML and assets require revalidation.
+except for the ACME challenge webroot. The current virtual host serves responses
+with `Cache-Control: no-store`.
 
-No Relay process, port, network, or database is added by this deployment. The API
-remains loopback-only when explicitly started. Kubernetes is not involved.
+The initial static-site rollout added no Relay process. The subsequent personal
+API rollout connects only API/receiver to the existing edge network, preserves
+the loopback API port, and starts the worker. Kubernetes is not involved.
 
 ## Local preview
 
