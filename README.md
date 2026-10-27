@@ -131,3 +131,9 @@ Do not use the scaffold manifests as a production deployment.
 The active transport policy is documented in [delivery security](docs/DELIVERY_SECURITY.md).
 The API never sends webhooks itself; the separate sending command commits attempt
 metadata before network I/O and records the outcome afterward.
+
+## Security maintenance — 2026-10-23
+
+The API, delivery worker, exporter and demonstration are rebuilt with Go 1.27.3 and patched pgx/Go dependencies. PostgreSQL remains on 17.11. Preserve project `relay-dev`, all four production Compose files and `.local/deploy.env`. Alertmanager is updated in configuration to 0.34.1 but remains stopped; no notification routing is activated by this maintenance.
+
+VPS backup and recovery procedures: [shared VPS runbook](https://github.com/BoniLuan/boniluan/blob/main/ops/vps/README.md).

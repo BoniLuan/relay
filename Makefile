@@ -87,8 +87,8 @@ metrics-stop:
 monitoring-prepare:
 	python3 scripts/prepare-monitoring.py ../vigil/deploy/observability/prometheus/prometheus.yml .local/prometheus.integrated.yml
 test-alerts:
-	docker run --rm --network none -v "$(CURDIR)/deploy/monitoring:/rules:ro" --workdir /rules --entrypoint /bin/promtool prom/prometheus:v3.14.0 check rules alerts.yml
-	docker run --rm --network none -v "$(CURDIR)/deploy/monitoring:/rules:ro" --workdir /rules --entrypoint /bin/promtool prom/prometheus:v3.14.0 test rules alerts.test.yml
+	docker run --rm --network none -v "$(CURDIR)/deploy/monitoring:/rules:ro" --workdir /rules --entrypoint /bin/promtool prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2 check rules alerts.yml
+	docker run --rm --network none -v "$(CURDIR)/deploy/monitoring:/rules:ro" --workdir /rules --entrypoint /bin/promtool prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2 test rules alerts.test.yml
 demo-recovery:
 	docker build -t relay:observability-demo .
 	sh scripts/demo-recovery.sh

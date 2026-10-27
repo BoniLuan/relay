@@ -1,7 +1,7 @@
 name: relay-test
 services:
   relay-test-db:
-    image: postgres:17.11-alpine
+    image: postgres:17.11-alpine@sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb
     # Retain operational errors without JSON context, statements or parameters.
     command:
       - postgres
@@ -29,7 +29,7 @@ services:
     mem_limit: 256m
     cpus: 0.5
   relay-tests:
-    image: golang:1.27-bookworm
+    image: golang:1.27.3-bookworm@sha256:972b4110ba0f47539a975c31e52c64765e1ff19f2d74469ae4a595c6676e80a5
     working_dir: /src
     user: "${RELAY_TEST_UID:-1000}:${RELAY_TEST_GID:-1000}"
     environment:
